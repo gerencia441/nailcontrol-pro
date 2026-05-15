@@ -1,0 +1,191 @@
+import { useEffect, useState } from 'react';
+import { Plus, Pencil, Trash2, Clock, DollarSign } from 'lucide-react';
+import { api } from '../lib/api.js';
+import Button from '../components/ui/Button.jsx';
+import Modal from '../components/ui/Modal.jsx';
+import Input from '../components/ui/Input.jsx';
+
+const EMPTY_FORM = { name: '', basePrice: '', durationMinutes: '' };
+
+const formatCurrency = (v) =>
+  new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0,
+  }).format(v);
+
+export default function Services() {
+  const [services, setServices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [editId, setEditId] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const load = () =>
+    api
+      .getServices()
+      .then(setServices)
+      .finally(() => setLoading(false));
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const openCreate = () => {
+    setForm(EMPTY_FORM);
+    setEditId(null);
+    setModalOpen(true);
+  };
+
+  const openEdit = (s) => {
+    setForm({
+      name: s.name,
+      basePrice: String(s.basePrice),
+      durationMinutes: String(s.durationMinutes),
+    });
+    setEditId(s.id);
+    setModalOpen(true);
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      if (editId) {
+        await api.updateService(editId, form);
+      } else {
+        await api.createService(form);
+      }
+      setModalOpen(false);
+      load();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('¿Eliminar este servicio?')) return;
+    try {
+      await api.deleteService(id);
+      load();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Servicios</h1>
+          <p className="text-sm text-gray-500 mt-1">{services.length} registrados</p>
+        </div>
+        <Button onClick={openCreate}>
+          <Plus size={16} /> Nuevo Servicio
+        </Button>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-pink-50 overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center text-gray-400 text-sm">Cargando...</div>
+        ) : services.length === 0 ? (
+          <div className="p-8 text-center text-gray-400 text-sm">
+            No hay servicios registrados.
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-pink-50 bg-pink-50/50">
+                <th className="text-left px-5 py-3 font-medium text-gray-600">Servicio</th>
+                <th className="text-left px-5 py-3 font-medium text-gray-600">Precio Base</th>
+                <th className="text-left px-5 py-3 font-medium text-gray-600">Duración</th>
+                <th className="px-5 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {services.map((s) => (
+                <tr
+                  key={s.id}
+                  className="border-b border-pink-50 last:border-0 hover:bg-pink-50/30 transition-colors"
+                >
+                  <td className="px-5 py-3 font-medium text-gray-800">{s.name}</td>
+                  <td className="px-5 py-3">
+                    <span className="inline-flex items-center gap-1 text-emerald-700">
+                      <DollarSign size={14} />
+                      {formatCurrency(s.basePrice)}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className="inline-flex items-center gap-1 text-gray-500">
+                      <Clock size={14} />
+                      {s.durationMinutes} min
+                    </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-1 justify-end">
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(s)}>
+                        <Pencil size={14} />
+                      </Button>
+                      <Button variant="danger" size="sm" onClick={() => handleDelete(s.id)}>
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editId ? 'Editar Servicio' : 'Nuevo Servicio'}
+      >
+        <form onSubmit={handleSave} className="space-y-4">
+          <Input
+            label="Nombre del Servicio *"
+            id="svc-name"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+            placeholder="Ej: Manicure Semipermanente"
+          />
+          <Input
+            label="Precio Base (COP) *"
+            id="svc-price"
+            type="number"
+            min="0"
+            step="1000"
+            value={form.basePrice}
+            onChange={(e) => setForm({ ...form, basePrice: e.target.value })}
+            required
+            placeholder="35000"
+          />
+          <Input
+            label="Duración (minutos) *"
+            id="svc-duration"
+            type="number"
+            min="1"
+            value={form.durationMinutes}
+            onChange={(e) => setForm({ ...form, durationMinutes: e.target.value })}
+            required
+            placeholder="60"
+          />
+          <div className="flex gap-2 pt-2 justify-end">
+            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Guardando...' : editId ? 'Actualizar' : 'Crear'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}

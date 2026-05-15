@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AppointmentStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  BANCOLOMBIA
+  NEQUI
+}
+
+enum FinanceType {
+  INCOME
+  EXPENSE
+}
+
+model Client {
+  id             String        @id @default(cuid())
+  name           String
+  birthDate      DateTime?
+  phone          String?
+  tags           String[]
+  technicalNotes String?
+  appointments   Appointment[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Service {
+  id              String        @id @default(cuid())
+  name            String
+  basePrice       Float
+  durationMinutes Int
+  appointments    Appointment[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Manicurist {
+  id                   String        @id @default(cuid())
+  name                 String
+  phone                String?
+  commissionPercentage Float
+  appointments         Appointment[]
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+}
+
+model Appointment {
+  id             String            @id @default(cuid())
+  clientId       String
+  manicuristId   String
+  serviceId      String
+  date           DateTime
+  status         AppointmentStatus @default(PENDING)
+  finalPricePaid Float?
+  paymentMethod  PaymentMethod?
+  client         Client            @relation(fields: [clientId], references: [id])
+  manicurist     Manicurist        @relation(fields: [manicuristId], references: [id])
+  service        Service           @relation(fields: [serviceId], references: [id])
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model Finance {
+  id            String        @id @default(cuid())
+  type          FinanceType
+  amount        Float
+  description   String
+  date          DateTime
+  paymentMethod PaymentMethod?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
