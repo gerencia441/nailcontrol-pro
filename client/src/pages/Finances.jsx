@@ -141,17 +141,18 @@ export default function Finances() {
               No hay registros financieros.
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-pink-50 bg-pink-50/50">
-                  <th className="text-left px-5 py-3 font-medium text-gray-600">Fecha</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-600">Descripción</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-600">Tipo</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-600">Método</th>
-                  <th className="text-right px-5 py-3 font-medium text-gray-600">Monto</th>
-                  <th className="px-5 py-3" />
-                </tr>
-              </thead>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-pink-50 bg-pink-50/50">
+                    <th className="text-left px-5 py-3 font-medium text-gray-600">Fecha</th>
+                    <th className="text-left px-5 py-3 font-medium text-gray-600">Descripción</th>
+                    <th className="text-left px-5 py-3 font-medium text-gray-600">Tipo</th>
+                    <th className="text-left px-5 py-3 font-medium text-gray-600">Método</th>
+                    <th className="text-right px-5 py-3 font-medium text-gray-600">Monto</th>
+                    <th className="px-5 py-3" />
+                  </tr>
+                </thead>
               <tbody>
                 {finances.map((f) => (
                   <tr
@@ -191,6 +192,7 @@ export default function Finances() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}

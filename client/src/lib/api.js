@@ -1,13 +1,24 @@
 const BASE = '/api';
 
 async function request(method, path, body) {
+  const token = localStorage.getItem('token');
+  const headers = body ? { 'Content-Type': 'application/json' } : {};
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : {},
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || 'API Error');
   }
@@ -17,6 +28,9 @@ async function request(method, path, body) {
 }
 
 export const api = {
+  // Auth
+  login: (data) => request('POST', '/auth/login', data),
+
   // Clients
   getClients: (search) =>
     request('GET', `/clients${search ? `?search=${encodeURIComponent(search)}` : ''}`),

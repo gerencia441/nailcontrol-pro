@@ -124,16 +124,17 @@ export default function Clients() {
             No hay clientas registradas.
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-pink-50 bg-pink-50/50">
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Nombre</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Teléfono</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Etiquetas</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Notas</th>
-                <th className="px-5 py-3" />
-              </tr>
-            </thead>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-pink-50 bg-pink-50/50">
+                  <th className="text-left px-5 py-3 font-medium text-gray-600">Nombre</th>
+                  <th className="text-left px-5 py-3 font-medium text-gray-600">Teléfono</th>
+                  <th className="text-left px-5 py-3 font-medium text-gray-600">Etiquetas</th>
+                  <th className="text-left px-5 py-3 font-medium text-gray-600">Notas</th>
+                  <th className="px-5 py-3" />
+                </tr>
+              </thead>
             <tbody>
               {clients.map((c) => (
                 <tr key={c.id} className="border-b border-pink-50 last:border-0 hover:bg-pink-50/30 transition-colors">
@@ -169,6 +170,7 @@ export default function Clients() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
