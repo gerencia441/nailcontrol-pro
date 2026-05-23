@@ -24,6 +24,12 @@ async function request(method, path, body) {
   }
 
   if (res.status === 204) return null;
+
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error('Respuesta inesperada del servidor. Reinicia el backend y vuelve a intentar.');
+  }
+
   return res.json();
 }
 
@@ -65,7 +71,10 @@ export const api = {
     request('GET', `/finances?${new URLSearchParams(params || {})}`),
   createFinance: (data) => request('POST', '/finances', data),
   deleteFinance: (id) => request('DELETE', `/finances/${id}`),
-  getDayClose: (date) => request('GET', `/finances/day-close?date=${date}`),
+  getDayClose: (date) => request('GET', `/finances/day-close?date=${encodeURIComponent(date)}`),
+  getWeekClose: (date) => request('GET', `/finances/week-close?date=${encodeURIComponent(date)}`),
+  getFinanceSummary: (params) =>
+    request('GET', `/finances/summary?${new URLSearchParams(params || {})}`),
 
   // Dashboard
   getDashboard: () => request('GET', '/dashboard'),

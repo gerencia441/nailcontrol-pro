@@ -16,7 +16,7 @@ const requireAuth = require('./middleware/auth');
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
-  console.error('Missing DATABASE_URL. Copy server/.env.example to server/.env and set your PostgreSQL connection string.');
+  console.error('Missing DATABASE_URL. Copy server/.env.example to server/.env and set your MySQL connection string.');
   process.exit(1);
 }
 
@@ -46,6 +46,10 @@ app.use('/api/manicurists', requireAuth, manicuristsRouter);
 app.use('/api/appointments', requireAuth, appointmentsRouter);
 app.use('/api/finances', requireAuth, financesRouter);
 app.use('/api/dashboard', requireAuth, dashboardRouter);
+
+app.use('/api', (_req, res) => {
+  res.status(404).json({ error: 'API route not found' });
+});
 
 if (IS_PROD || hasDist) {
   app.use(express.static(distPath));

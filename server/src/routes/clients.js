@@ -5,9 +5,7 @@ router.get('/', async (req, res) => {
   try {
     const { search } = req.query;
     const clients = await req.prisma.client.findMany({
-      where: search
-        ? { name: { contains: search, mode: 'insensitive' } }
-        : undefined,
+      where: search ? { name: { contains: search } } : undefined,
       orderBy: { name: 'asc' },
     });
     res.json(clients);

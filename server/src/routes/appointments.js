@@ -3,9 +3,20 @@ const router = Router();
 
 const INCLUDE_FULL = {
   client: true,
-  service: true,
   manicurist: true,
+  services: {
+    include: { service: true },
+  },
 };
+
+function mapAppointment(appointment) {
+  const services = appointment.services?.map((item) => item.service) || [];
+  return {
+    ...appointment,
+    services,
+    service: services[0] || null,
+  };
+}
 
 router.get('/', async (req, res) => {
   try {
@@ -29,7 +40,7 @@ router.get('/', async (req, res) => {
       include: INCLUDE_FULL,
       orderBy: { date: 'asc' },
     });
-    res.json(appointments);
+    res.json(appointments.map(mapAppointment));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -37,7 +48,14 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { clientId, newClient, manicuristId, serviceId, date } = req.body;
+    const { clientId, newClient, manicuristId, serviceId, serviceIds, date } = req.body;
+    const resolvedServiceIds = [
+      ...new Set(Array.isArray(serviceIds) ? serviceIds.filter(Boolean) : [serviceId].filter(Boolean)),
+    ];
+
+    if (resolvedServiceIds.length === 0) {
+      return res.status(400).json({ error: 'At least one service is required' });
+    }
 
     let resolvedClientId = clientId;
 
@@ -56,12 +74,16 @@ router.post('/', async (req, res) => {
       data: {
         clientId: resolvedClientId,
         manicuristId,
-        serviceId,
         date: new Date(date),
+        services: {
+          create: resolvedServiceIds.map((id) => ({
+            service: { connect: { id } },
+          })),
+        },
       },
       include: INCLUDE_FULL,
     });
-    res.status(201).json(appointment);
+    res.status(201).json(mapAppointment(appointment));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -74,16 +96,27 @@ router.patch('/:id/complete', async (req, res) => {
     const result = await req.prisma.$transaction(async (tx) => {
       const appt = await tx.appointment.findUnique({
         where: { id: req.params.id },
-        include: { client: true, service: true },
+        include: {
+          client: true,
+          services: { include: { service: true } },
+        },
       });
 
       if (!appt) throw new Error('Appointment not found');
+
+      const services = appt.services.map((item) => item.service);
+      const serviceTotal = services.reduce((sum, service) => sum + service.basePrice, 0);
+      const paid =
+        finalPricePaid === undefined || finalPricePaid === ''
+          ? serviceTotal
+          : parseFloat(finalPricePaid);
+      const serviceNames = services.map((service) => service.name).join(' + ');
 
       const updated = await tx.appointment.update({
         where: { id: req.params.id },
         data: {
           status: 'COMPLETED',
-          finalPricePaid: parseFloat(finalPricePaid),
+          finalPricePaid: paid,
           paymentMethod,
         },
         include: INCLUDE_FULL,
@@ -92,14 +125,14 @@ router.patch('/:id/complete', async (req, res) => {
       const finance = await tx.finance.create({
         data: {
           type: 'INCOME',
-          amount: parseFloat(finalPricePaid),
-          description: `${appt.service.name} — ${appt.client.name}`,
+          amount: paid,
+          description: `${serviceNames} - ${appt.client.name}`,
           date: new Date(),
           paymentMethod,
         },
       });
 
-      return { appointment: updated, finance };
+      return { appointment: mapAppointment(updated), finance };
     });
 
     res.json(result);
@@ -110,16 +143,47 @@ router.patch('/:id/complete', async (req, res) => {
 
 router.patch('/:id', async (req, res) => {
   try {
-    const { status, date } = req.body;
+    const { status, date, manicuristId, serviceIds } = req.body;
+    const data = {
+      ...(status && { status }),
+      ...(date && { date: new Date(date) }),
+      ...(manicuristId && { manicuristId }),
+    };
+
+    if (serviceIds !== undefined) {
+      const resolvedServiceIds = [...new Set((Array.isArray(serviceIds) ? serviceIds : []).filter(Boolean))];
+
+      if (resolvedServiceIds.length === 0) {
+        return res.status(400).json({ error: 'At least one service is required' });
+      }
+
+      const existing = await req.prisma.appointment.findUnique({
+        where: { id: req.params.id },
+        select: { status: true },
+      });
+
+      if (!existing) {
+        return res.status(404).json({ error: 'Appointment not found' });
+      }
+
+      if (existing.status === 'COMPLETED') {
+        return res.status(400).json({ error: 'Completed appointments cannot be edited' });
+      }
+
+      data.services = {
+        deleteMany: {},
+        create: resolvedServiceIds.map((id) => ({
+          service: { connect: { id } },
+        })),
+      };
+    }
+
     const appointment = await req.prisma.appointment.update({
       where: { id: req.params.id },
-      data: {
-        ...(status && { status }),
-        ...(date && { date: new Date(date) }),
-      },
+      data,
       include: INCLUDE_FULL,
     });
-    res.json(appointment);
+    res.json(mapAppointment(appointment));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
