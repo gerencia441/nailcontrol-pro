@@ -14,7 +14,7 @@ export default function Layout() {
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="inline-flex items-center justify-center p-1 rounded-xl bg-pink-50 text-pink-700 hover:bg-pink-100"
+            className="inline-flex items-center justify-center p-2 rounded-xl bg-pink-50 text-pink-700 hover:bg-pink-100"
           >
             <Menu size={20} />
           </button>
