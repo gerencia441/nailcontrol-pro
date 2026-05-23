@@ -30,7 +30,7 @@ router.get('/:id', async (req, res) => {
       include: {
         appointments: {
           include: {
-            AppointmentService: { include: { Service: true } },
+            services: { include: { service: true } },
             manicurist: true,
           },
           orderBy: { date: 'desc' },
@@ -40,8 +40,8 @@ router.get('/:id', async (req, res) => {
     if (!client) return res.status(404).json({ error: 'Not found' });
     const parsed = parseTags(client);
     parsed.appointments = parsed.appointments.map((a) => {
-      const { AppointmentService, ...rest } = a;
-      return { ...rest, service: AppointmentService?.[0]?.Service ?? null };
+      const { services, ...rest } = a;
+      return { ...rest, service: services?.[0]?.service ?? null };
     });
     res.json(parsed);
   } catch (err) {
