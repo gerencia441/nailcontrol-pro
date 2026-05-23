@@ -5,6 +5,7 @@ import Button from '../components/ui/Button.jsx';
 import Modal from '../components/ui/Modal.jsx';
 import Input from '../components/ui/Input.jsx';
 import Select from '../components/ui/Select.jsx';
+import DateTimePicker from '../components/ui/DateTimePicker.jsx';
 import { StatusBadge, PaymentBadge } from '../components/ui/Badge.jsx';
 
 const formatCurrency = (v) =>
@@ -281,12 +282,10 @@ export default function Appointments() {
         maxWidth="max-w-md"
       >
         <form onSubmit={handleCreateAppt} className="space-y-4">
-          <Input
+          <DateTimePicker
             label="Fecha y Hora *"
-            id="appt-date"
-            type="datetime-local"
             value={apptForm.date}
-            onChange={(e) => setApptForm({ ...apptForm, date: e.target.value })}
+            onChange={(val) => setApptForm({ ...apptForm, date: val })}
             required
           />
 

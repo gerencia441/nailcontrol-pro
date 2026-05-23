@@ -6,6 +6,7 @@ import {
   UserCheck,
   CalendarDays,
   DollarSign,
+  Settings,
 } from 'lucide-react';
 
 const links = [
@@ -15,6 +16,7 @@ const links = [
   { to: '/services', label: 'Servicios', Icon: Scissors },
   { to: '/manicurists', label: 'Manicuristas', Icon: UserCheck },
   { to: '/finances', label: 'Finanzas', Icon: DollarSign },
+  { to: '/settings', label: 'Ajustes', Icon: Settings },
 ];
 
 export default function Sidebar() {

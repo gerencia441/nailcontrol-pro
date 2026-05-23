@@ -9,6 +9,7 @@ const manicuristsRouter = require('./routes/manicurists');
 const appointmentsRouter = require('./routes/appointments');
 const financesRouter = require('./routes/finances');
 const dashboardRouter = require('./routes/dashboard');
+const integrationsRouter = require('./routes/integrations');
 
 const prisma = new PrismaClient();
 const app = express();
@@ -18,7 +19,7 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 app.use(express.json());
 
 if (!IS_PROD) {
-  app.use(cors({ origin: 'http://localhost:5173' }));
+  app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
 }
 
 app.use((req, _res, next) => {
@@ -32,6 +33,7 @@ app.use('/api/manicurists', manicuristsRouter);
 app.use('/api/appointments', appointmentsRouter);
 app.use('/api/finances', financesRouter);
 app.use('/api/dashboard', dashboardRouter);
+app.use('/api/integrations', integrationsRouter);
 
 if (IS_PROD) {
   const distPath = path.join(__dirname, '../../client/dist');

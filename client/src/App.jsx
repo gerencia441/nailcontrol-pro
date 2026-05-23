@@ -6,6 +6,7 @@ import Services from './pages/Services.jsx';
 import Manicurists from './pages/Manicurists.jsx';
 import Appointments from './pages/Appointments.jsx';
 import Finances from './pages/Finances.jsx';
+import Settings from './pages/Settings.jsx';
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="manicurists" element={<Manicurists />} />
         <Route path="appointments" element={<Appointments />} />
         <Route path="finances" element={<Finances />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
   );

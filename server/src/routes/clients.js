@@ -1,16 +1,23 @@
 const { Router } = require('express');
 const router = Router();
 
+function parseTags(client) {
+  if (!client) return client;
+  try {
+    return { ...client, tags: JSON.parse(client.tags || '[]') };
+  } catch {
+    return { ...client, tags: [] };
+  }
+}
+
 router.get('/', async (req, res) => {
   try {
     const { search } = req.query;
     const clients = await req.prisma.client.findMany({
-      where: search
-        ? { name: { contains: search, mode: 'insensitive' } }
-        : undefined,
+      where: search ? { name: { contains: search } } : undefined,
       orderBy: { name: 'asc' },
     });
-    res.json(clients);
+    res.json(clients.map(parseTags));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -22,13 +29,21 @@ router.get('/:id', async (req, res) => {
       where: { id: req.params.id },
       include: {
         appointments: {
-          include: { service: true, manicurist: true },
+          include: {
+            AppointmentService: { include: { Service: true } },
+            manicurist: true,
+          },
           orderBy: { date: 'desc' },
         },
       },
     });
     if (!client) return res.status(404).json({ error: 'Not found' });
-    res.json(client);
+    const parsed = parseTags(client);
+    parsed.appointments = parsed.appointments.map((a) => {
+      const { AppointmentService, ...rest } = a;
+      return { ...rest, service: AppointmentService?.[0]?.Service ?? null };
+    });
+    res.json(parsed);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -42,11 +57,11 @@ router.post('/', async (req, res) => {
         name,
         birthDate: birthDate ? new Date(birthDate) : undefined,
         phone,
-        tags: tags || [],
+        tags: JSON.stringify(tags || []),
         technicalNotes,
       },
     });
-    res.status(201).json(client);
+    res.status(201).json(parseTags(client));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -61,11 +76,11 @@ router.put('/:id', async (req, res) => {
         name,
         birthDate: birthDate ? new Date(birthDate) : null,
         phone,
-        tags: tags || [],
+        tags: JSON.stringify(tags || []),
         technicalNotes,
       },
     });
-    res.json(client);
+    res.json(parseTags(client));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

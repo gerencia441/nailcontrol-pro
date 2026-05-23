@@ -1,11 +1,18 @@
 const { Router } = require('express');
 const router = Router();
+const { getOwnerConfig, createEvent, deleteEvent } = require('../lib/googleCalendar');
 
 const INCLUDE_FULL = {
   client: true,
-  service: true,
   manicurist: true,
+  AppointmentService: { include: { Service: true } },
 };
+
+function flatten(appt) {
+  if (!appt) return appt;
+  const { AppointmentService, ...rest } = appt;
+  return { ...rest, service: AppointmentService?.[0]?.Service ?? null };
+}
 
 router.get('/', async (req, res) => {
   try {
@@ -20,16 +27,14 @@ router.get('/', async (req, res) => {
       where.date = { gte: day, lt: nextDay };
     }
 
-    if (status) {
-      where.status = status;
-    }
+    if (status) where.status = status;
 
     const appointments = await req.prisma.appointment.findMany({
       where,
       include: INCLUDE_FULL,
       orderBy: { date: 'asc' },
     });
-    res.json(appointments);
+    res.json(appointments.map(flatten));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -43,11 +48,7 @@ router.post('/', async (req, res) => {
 
     if (newClient) {
       const created = await req.prisma.client.create({
-        data: {
-          name: newClient.name,
-          phone: newClient.phone,
-          tags: [],
-        },
+        data: { name: newClient.name, phone: newClient.phone, tags: '[]' },
       });
       resolvedClientId = created.id;
     }
@@ -56,12 +57,30 @@ router.post('/', async (req, res) => {
       data: {
         clientId: resolvedClientId,
         manicuristId,
-        serviceId,
         date: new Date(date),
+        ...(serviceId && { AppointmentService: { create: { serviceId } } }),
       },
       include: INCLUDE_FULL,
     });
-    res.status(201).json(appointment);
+
+    const flat = flatten(appointment);
+
+    // Sync to Google Calendar if connected
+    const { refreshToken, calendarId } = await getOwnerConfig(req.prisma);
+    if (refreshToken) {
+      try {
+        const googleEventId = await createEvent(refreshToken, calendarId, flat);
+        await req.prisma.appointment.update({
+          where: { id: appointment.id },
+          data: { googleEventId },
+        });
+        flat.googleEventId = googleEventId;
+      } catch (gcErr) {
+        console.warn('Google Calendar sync failed (create):', gcErr.message);
+      }
+    }
+
+    res.status(201).json(flat);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -74,7 +93,7 @@ router.patch('/:id/complete', async (req, res) => {
     const result = await req.prisma.$transaction(async (tx) => {
       const appt = await tx.appointment.findUnique({
         where: { id: req.params.id },
-        include: { client: true, service: true },
+        include: { client: true, AppointmentService: { include: { Service: true } } },
       });
 
       if (!appt) throw new Error('Appointment not found');
@@ -89,17 +108,18 @@ router.patch('/:id/complete', async (req, res) => {
         include: INCLUDE_FULL,
       });
 
-      const finance = await tx.finance.create({
+      const serviceName = appt.AppointmentService?.[0]?.Service?.name ?? 'Servicio';
+      await tx.finance.create({
         data: {
           type: 'INCOME',
           amount: parseFloat(finalPricePaid),
-          description: `${appt.service.name} — ${appt.client.name}`,
+          description: `${serviceName} — ${appt.client.name}`,
           date: new Date(),
           paymentMethod,
         },
       });
 
-      return { appointment: updated, finance };
+      return { appointment: flatten(updated) };
     });
 
     res.json(result);
@@ -119,7 +139,26 @@ router.patch('/:id', async (req, res) => {
       },
       include: INCLUDE_FULL,
     });
-    res.json(appointment);
+    const flat = flatten(appointment);
+
+    // If cancelling, remove the Google Calendar event
+    if (status === 'CANCELLED' && flat.googleEventId) {
+      const { refreshToken, calendarId } = await getOwnerConfig(req.prisma);
+      if (refreshToken) {
+        try {
+          await deleteEvent(refreshToken, calendarId, flat.googleEventId);
+          await req.prisma.appointment.update({
+            where: { id: flat.id },
+            data: { googleEventId: null },
+          });
+          flat.googleEventId = null;
+        } catch (gcErr) {
+          console.warn('Google Calendar sync failed (delete):', gcErr.message);
+        }
+      }
+    }
+
+    res.json(flat);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -127,7 +166,23 @@ router.patch('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
+    const appt = await req.prisma.appointment.findUnique({
+      where: { id: req.params.id },
+      select: { googleEventId: true },
+    });
+
     await req.prisma.appointment.delete({ where: { id: req.params.id } });
+
+    // Clean up Google Calendar event
+    if (appt?.googleEventId) {
+      const { refreshToken, calendarId } = await getOwnerConfig(req.prisma);
+      if (refreshToken) {
+        deleteEvent(refreshToken, calendarId, appt.googleEventId).catch((err) =>
+          console.warn('Google Calendar sync failed (delete on remove):', err.message)
+        );
+      }
+    }
+
     res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: err.message });

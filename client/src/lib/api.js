@@ -55,4 +55,9 @@ export const api = {
 
   // Dashboard
   getDashboard: () => request('GET', '/dashboard'),
+
+  // Google Calendar integration
+  getGoogleStatus: () => request('GET', '/integrations/google/status'),
+  saveGoogleCalendarId: (calendarId) => request('PUT', '/integrations/google/calendar', { calendarId }),
+  disconnectGoogle: () => request('DELETE', '/integrations/google/disconnect'),
 };
