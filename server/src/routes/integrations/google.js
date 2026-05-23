@@ -6,108 +6,47 @@ const router = express.Router();
 const SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
 
 function createOAuthClient() {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirect = process.env.GOOGLE_REDIRECT;
-  if (!clientId || !clientSecret || !redirect) throw new Error('Missing Google OAuth env vars');
-  return new google.auth.OAuth2(clientId, clientSecret, redirect);
+  const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT } = process.env;
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT)
+    throw new Error('Missing Google OAuth env vars');
+  return new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT);
 }
 
-// Return an auth URL for the frontend to open
-router.get('/connect', async (req, res) => {
+// One-time setup: visit /api/integrations/google/setup to get the auth URL
+// After completing OAuth, the refresh token is printed in the callback response
+// so you can copy it into GOOGLE_REFRESH_TOKEN in .env / Railway
+router.get('/setup', (_req, res) => {
   try {
-    const oauth2Client = createOAuthClient();
-    const state = JSON.stringify({ userId: req.user.id });
-    const url = oauth2Client.generateAuthUrl({
+    const url = createOAuthClient().generateAuthUrl({
       access_type: 'offline',
       scope: SCOPES,
       prompt: 'consent',
-      state,
     });
-    res.json({ url });
+    res.redirect(url);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Callback endpoint that Google will call after consent
+// Google calls this after the user grants consent
 router.get('/callback', async (req, res) => {
   try {
-    const { code, state } = req.query;
+    const { code } = req.query;
     if (!code) return res.status(400).send('Missing code');
-
-    const oauth2Client = createOAuthClient();
-    const { tokens } = await oauth2Client.getToken(code);
-
-    // State should contain userId set earlier
-    let userId = null;
-    try {
-      const parsed = JSON.parse(state);
-      userId = parsed.userId;
-    } catch (e) {
-      // ignore
+    const { tokens } = await createOAuthClient().getToken(code);
+    if (!tokens.refresh_token) {
+      return res.status(400).send(
+        'No se recibió refresh_token. Revoca el acceso en myaccount.google.com/permissions y vuelve a intentarlo.'
+      );
     }
-
-    if (!userId) {
-      return res.status(400).send('Missing state.userId');
-    }
-
-    // Save refresh token if provided
-    if (tokens.refresh_token) {
-      await req.prisma.user.update({
-        where: { id: userId },
-        data: { googleRefreshToken: tokens.refresh_token },
-      });
-    }
-
-    // Redirect to frontend success page
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
-    return res.redirect(`${frontendUrl}/?google_connected=1`);
+    res.send(`
+      <h2>¡Listo! Copia este Refresh Token y guárdalo en tu .env y en Railway como GOOGLE_REFRESH_TOKEN:</h2>
+      <pre style="background:#f4f4f4;padding:16px;border-radius:8px;word-break:break-all">${tokens.refresh_token}</pre>
+      <p>Luego reinicia el servidor. No necesitas volver a hacer esto.</p>
+    `);
   } catch (err) {
-    console.error(err);
-    return res.status(500).send('Google callback error');
+    res.status(500).send(`Error: ${err.message}`);
   }
 });
 
-// Status: whether user has connected calendar + saved calendarId
-router.get('/status', async (req, res) => {
-  try {
-    const user = await req.prisma.user.findUnique({ where: { id: req.user.id } });
-    res.json({
-      connected: Boolean(user?.googleRefreshToken),
-      calendarId: user?.googleCalendarId || '',
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Save a specific calendar ID
-router.put('/calendar', async (req, res) => {
-  try {
-    const { calendarId } = req.body;
-    await req.prisma.user.update({
-      where: { id: req.user.id },
-      data: { googleCalendarId: calendarId || null },
-    });
-    res.json({ calendarId: calendarId || null });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Disconnect Google Calendar
-router.delete('/disconnect', async (req, res) => {
-  try {
-    await req.prisma.user.update({
-      where: { id: req.user.id },
-      data: { googleRefreshToken: null },
-    });
-    res.json({ connected: false });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Redirect callback — must be accessible without auth (Google calls this)
 module.exports = router;

@@ -41,11 +41,8 @@ app.use((req, _res, next) => {
 
 app.use('/api/auth', authRouter);
 
-// /callback is called by Google without JWT — skip auth only for that path
-app.use('/api/integrations/google', (req, res, next) => {
-  if (req.path === '/callback') return next();
-  requireAuth(req, res, next);
-}, googleRouter);
+// Google routes: setup + callback don't need auth (one-time token retrieval only)
+app.use('/api/integrations/google', googleRouter);
 
 app.use('/api/clients', requireAuth, clientsRouter);
 app.use('/api/services', requireAuth, servicesRouter);
