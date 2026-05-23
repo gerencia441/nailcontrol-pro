@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { bogotaDateTimeToUtc, bogotaDayRangeToUtc } = require('../lib/bogotaTime');
+const googleCal = require('../lib/googleCalendar');
 const router = Router();
 
 const INCLUDE_FULL = {
@@ -81,6 +82,22 @@ router.post('/', async (req, res) => {
       },
       include: INCLUDE_FULL,
     });
+    // Try to create calendar event if user connected
+    try {
+      const mapped = mapAppointment(appointment);
+      const eventId = await googleCal.createEvent(req.prisma, req.user.id, mapped);
+      if (eventId) {
+        const updated = await req.prisma.appointment.update({
+          where: { id: appointment.id },
+          data: { googleEventId: eventId },
+          include: INCLUDE_FULL,
+        });
+        return res.status(201).json(mapAppointment(updated));
+      }
+    } catch (e) {
+      console.error('Google sync create error', e.message);
+    }
+
     res.status(201).json(mapAppointment(appointment));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -133,6 +150,30 @@ router.patch('/:id/complete', async (req, res) => {
       return { appointment: mapAppointment(updated), finance };
     });
 
+    // After completing the appointment, synchronize calendar event
+    try {
+      const apptFull = await req.prisma.appointment.findUnique({
+        where: { id: req.params.id },
+        include: INCLUDE_FULL,
+      });
+      if (apptFull) {
+        const mapped = mapAppointment(apptFull);
+        if (apptFull.googleEventId) {
+          await googleCal.updateEvent(req.prisma, req.user.id, mapped);
+        } else {
+          const eventId = await googleCal.createEvent(req.prisma, req.user.id, mapped);
+          if (eventId) {
+            await req.prisma.appointment.update({
+              where: { id: apptFull.id },
+              data: { googleEventId: eventId },
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Google sync complete error', e.message);
+    }
+
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -181,6 +222,22 @@ router.patch('/:id', async (req, res) => {
       data,
       include: INCLUDE_FULL,
     });
+
+    // Sync changes to calendar (create or update event)
+    try {
+      const mapped = mapAppointment(appointment);
+      if (appointment.googleEventId) {
+        await googleCal.updateEvent(req.prisma, req.user.id, mapped);
+      } else {
+        const eventId = await googleCal.createEvent(req.prisma, req.user.id, mapped);
+        if (eventId) {
+          await req.prisma.appointment.update({ where: { id: appointment.id }, data: { googleEventId: eventId } });
+        }
+      }
+    } catch (e) {
+      console.error('Google sync update error', e.message);
+    }
+
     res.json(mapAppointment(appointment));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -189,6 +246,16 @@ router.patch('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
+    // Try to delete linked google event first
+    try {
+      const appt = await req.prisma.appointment.findUnique({ where: { id: req.params.id } });
+      if (appt?.googleEventId) {
+        await googleCal.deleteEvent(req.prisma, req.user.id, appt.googleEventId);
+      }
+    } catch (e) {
+      console.error('Google sync delete error', e.message);
+    }
+
     await req.prisma.appointment.delete({ where: { id: req.params.id } });
     res.status(204).end();
   } catch (err) {

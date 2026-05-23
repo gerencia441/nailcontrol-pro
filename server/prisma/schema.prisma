@@ -64,6 +64,7 @@ model Appointment {
   date           DateTime
   status         AppointmentStatus    @default(PENDING)
   finalPricePaid Float?
+  googleEventId  String?
   paymentMethod  PaymentMethod?
   client         Client               @relation(fields: [clientId], references: [id])
   manicurist     Manicurist           @relation(fields: [manicuristId], references: [id])
@@ -96,4 +97,5 @@ model User {
   id       String @id @default(cuid())
   username String @unique
   password String
+  googleRefreshToken String?
 }

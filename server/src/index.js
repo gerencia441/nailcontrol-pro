@@ -12,6 +12,7 @@ const appointmentsRouter = require('./routes/appointments');
 const financesRouter = require('./routes/finances');
 const dashboardRouter = require('./routes/dashboard');
 const authRouter = require('./routes/auth');
+const googleRouter = require('./routes/integrations/google');
 const requireAuth = require('./middleware/auth');
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -39,6 +40,8 @@ app.use((req, _res, next) => {
 });
 
 app.use('/api/auth', authRouter);
+
+app.use('/api/integrations/google', requireAuth, googleRouter);
 
 app.use('/api/clients', requireAuth, clientsRouter);
 app.use('/api/services', requireAuth, servicesRouter);
