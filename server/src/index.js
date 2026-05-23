@@ -41,12 +41,11 @@ app.use((req, _res, next) => {
 
 app.use('/api/auth', authRouter);
 
-// Callback is called by Google (no JWT) — must be before requireAuth
-app.get('/api/integrations/google/callback', (req, res, next) => {
-  req.prisma = prisma;
-  next();
+// /callback is called by Google without JWT — skip auth only for that path
+app.use('/api/integrations/google', (req, res, next) => {
+  if (req.path === '/callback') return next();
+  requireAuth(req, res, next);
 }, googleRouter);
-app.use('/api/integrations/google', requireAuth, googleRouter);
 
 app.use('/api/clients', requireAuth, clientsRouter);
 app.use('/api/services', requireAuth, servicesRouter);
