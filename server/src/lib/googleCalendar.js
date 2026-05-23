@@ -10,22 +10,34 @@ function getOAuthClient() {
   return client;
 }
 
+function buildEventFields(appt) {
+  const services = appt.services?.length ? appt.services : appt.service ? [appt.service] : [];
+  const totalMinutes = services.reduce((sum, s) => sum + (s.durationMinutes || 60), 0) || 60;
+  const start = new Date(appt.date);
+  const end = new Date(start.getTime() + totalMinutes * 60000);
+
+  const serviceNames = services.map((s) => s.name).join(', ') || 'Cita';
+  const phone = appt.client?.phone ? `Teléfono: ${appt.client.phone}` : '';
+  const description = [`Servicios: ${serviceNames}`, phone, `Manicurista: ${appt.manicurist?.name || ''}`]
+    .filter(Boolean)
+    .join('\n');
+
+  return {
+    summary: appt.client?.name || 'Cita',
+    description,
+    start: { dateTime: start.toISOString(), timeZone: 'America/Bogota' },
+    end: { dateTime: end.toISOString(), timeZone: 'America/Bogota' },
+  };
+}
+
 async function createEvent(_prisma, _userId, appt) {
   const oauth2Client = getOAuthClient();
   if (!oauth2Client) return null;
   const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
-  const start = new Date(appt.date);
-  const end = new Date(start.getTime() + (appt.service?.durationMinutes || 60) * 60000);
-
   const res = await calendar.events.insert({
     calendarId: CALENDAR_ID,
-    requestBody: {
-      summary: `${appt.service?.name || 'Cita'} — ${appt.client?.name || ''}`,
-      description: `Manicurista: ${appt.manicurist?.name || ''}`,
-      start: { dateTime: start.toISOString(), timeZone: 'America/Bogota' },
-      end: { dateTime: end.toISOString(), timeZone: 'America/Bogota' },
-    },
+    requestBody: buildEventFields(appt),
   });
 
   return res.data.id;
@@ -37,18 +49,10 @@ async function updateEvent(_prisma, _userId, appt) {
   if (!oauth2Client) return null;
   const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
-  const start = new Date(appt.date);
-  const end = new Date(start.getTime() + (appt.service?.durationMinutes || 60) * 60000);
-
   const res = await calendar.events.update({
     calendarId: CALENDAR_ID,
     eventId: appt.googleEventId,
-    requestBody: {
-      summary: `${appt.service?.name || 'Cita'} — ${appt.client?.name || ''}`,
-      description: `Manicurista: ${appt.manicurist?.name || ''}`,
-      start: { dateTime: start.toISOString(), timeZone: 'America/Bogota' },
-      end: { dateTime: end.toISOString(), timeZone: 'America/Bogota' },
-    },
+    requestBody: buildEventFields(appt),
   });
 
   return res.data.id;
