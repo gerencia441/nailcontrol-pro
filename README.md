@@ -1,3 +1,76 @@
+# NailControl Pro
+
+Proyecto de gestión de citas para salones de uñas (frontend React + backend Express + Prisma).
+
+## Requisitos
+- Node.js >= 20
+- npm
+- Base de datos MySQL (o ajustar `DATABASE_URL`)
+
+## Clonar el repositorio
+
+```bash
+git clone https://github.com/gerencia441/nailcontrol-pro.git
+cd nailcontrol-pro
+```
+
+## Instalar dependencias
+
+Instalación en el root (ejecuta `postinstall` que instala `server` y `client`):
+
+```bash
+npm install
+```
+
+O instala por separado:
+
+```bash
+cd server && npm install
+cd ../client && npm install
+```
+
+## Variables de entorno
+Configura `server/.env` con al menos:
+
+- `DATABASE_URL` — conexión MySQL
+- `JWT_SECRET` — clave para tokens
+- `PORT` (opcional, por defecto 3001)
+
+Hay un `server/.env` en el proyecto; revisa y reemplaza credenciales sensibles antes de publicar.
+
+## Ejecutar en desarrollo
+
+1) Iniciar servidor:
+
+```bash
+cd server
+npm run dev
+```
+
+2) Iniciar cliente (Vite):
+
+```bash
+cd client
+npm run dev
+# Abre http://localhost:5174/
+```
+
+## Build / Producción
+
+En la raíz:
+
+```bash
+npm run build
+npm start
+```
+
+El script `build` compila el cliente y aplica las tareas de Prisma necesarias.
+
+## Notas
+- Si trabajas en Windows y el script `dev:server` no establece `NODE_ENV`, inicia el servidor directamente con `cd server && npm run dev`.
+- Revisa el contenido de `server/.env` y elimina credenciales públicas si subes el repositorio a un servicio público.
+
+Si quieres, puedo añadir un `README` más detallado, workflows de CI o proteger ramas en GitHub.
 NailControl Pro
 
 Proyecto de gestión para salones de uñas (frontend con React + Vite y backend con Express + Prisma).
