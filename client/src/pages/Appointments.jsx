@@ -16,6 +16,7 @@ const formatCurrency = (v) =>
 
 const formatDateTime = (d) =>
   new Date(d).toLocaleString('es-CO', {
+    timeZone: 'America/Bogota',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -23,16 +24,28 @@ const formatDateTime = (d) =>
     minute: '2-digit',
   });
 
+function getBogotaParts(date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(date));
+
+  return Object.fromEntries(parts.map((part) => [part.type, part.value]));
+}
+
 function toLocalDateInput(date) {
-  const d = new Date(date);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parts = getBogotaParts(date);
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 function toLocalDateTimeInput(date) {
-  const d = new Date(date);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const parts = getBogotaParts(date);
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
 const getAppointmentServices = (appt) =>

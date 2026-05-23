@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const { bogotaDateTimeToUtc, bogotaDayRangeToUtc } = require('../lib/bogotaTime');
 const router = Router();
 
 const INCLUDE_FULL = {
@@ -24,11 +25,8 @@ router.get('/', async (req, res) => {
     const where = {};
 
     if (date) {
-      const day = new Date(date);
-      day.setUTCHours(0, 0, 0, 0);
-      const nextDay = new Date(day);
-      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-      where.date = { gte: day, lt: nextDay };
+      const { start, end } = bogotaDayRangeToUtc(date);
+      where.date = { gte: start, lt: end };
     }
 
     if (status) {
@@ -74,7 +72,7 @@ router.post('/', async (req, res) => {
       data: {
         clientId: resolvedClientId,
         manicuristId,
-        date: new Date(date),
+        date: bogotaDateTimeToUtc(date),
         services: {
           create: resolvedServiceIds.map((id) => ({
             service: { connect: { id } },
@@ -146,7 +144,7 @@ router.patch('/:id', async (req, res) => {
     const { status, date, manicuristId, serviceIds } = req.body;
     const data = {
       ...(status && { status }),
-      ...(date && { date: new Date(date) }),
+      ...(date && { date: bogotaDateTimeToUtc(date) }),
       ...(manicuristId && { manicuristId }),
     };
 
