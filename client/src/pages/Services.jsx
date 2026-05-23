@@ -102,14 +102,14 @@ export default function Services() {
                 <th className="text-left px-5 py-3 font-medium text-gray-600">Servicio</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-600">Precio Base</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-600">Duración</th>
-                <th className="px-5 py-3" />
               </tr>
             </thead>
             <tbody>
               {services.map((s) => (
                 <tr
                   key={s.id}
-                  className="border-b border-pink-50 last:border-0 hover:bg-pink-50/30 transition-colors"
+                  className="border-b border-pink-50 last:border-0 hover:bg-pink-50/30 transition-colors cursor-pointer"
+                  onClick={() => openEdit(s)}
                 >
                   <td className="px-5 py-3 font-medium text-gray-800">{s.name}</td>
                   <td className="px-5 py-3">
@@ -123,16 +123,6 @@ export default function Services() {
                       <Clock size={14} />
                       {s.durationMinutes} min
                     </span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-1 justify-end">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(s)}>
-                        <Pencil size={14} />
-                      </Button>
-                      <Button variant="danger" size="sm" onClick={() => handleDelete(s.id)}>
-                        <Trash2 size={14} />
-                      </Button>
-                    </div>
                   </td>
                 </tr>
               ))}
@@ -176,13 +166,29 @@ export default function Services() {
             required
             placeholder="60"
           />
-          <div className="flex gap-2 pt-2 justify-end">
-            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Guardando...' : editId ? 'Actualizar' : 'Crear'}
-            </Button>
+          <div className="flex gap-2 pt-2 justify-between">
+            {editId && (
+              <Button
+                type="button"
+                variant="danger"
+                onClick={() => {
+                  if (confirm('¿Eliminar este servicio?')) {
+                    handleDelete(editId);
+                    setModalOpen(false);
+                  }
+                }}
+              >
+                <Trash2 size={14} /> Eliminar
+              </Button>
+            )}
+            <div className="flex gap-2 ml-auto">
+              <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? 'Guardando...' : editId ? 'Actualizar' : 'Crear'}
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>

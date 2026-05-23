@@ -1,73 +1,195 @@
 const { Router } = require('express');
 const router = Router();
 
-// IMPORTANT: /day-close must be registered before /:id
+function startOfUtcDay(value) {
+  const date = new Date(value);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+}
+
+function endExclusiveOfUtcDay(value) {
+  const date = startOfUtcDay(value);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date;
+}
+
+function getUtcWeekRange(value) {
+  const start = startOfUtcDay(value);
+  const day = start.getUTCDay();
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  start.setUTCDate(start.getUTCDate() - daysFromMonday);
+
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 7);
+
+  return { start, end };
+}
+
+function getUtcMonthRange(year, month) {
+  const start = new Date(Date.UTC(Number(year), Number(month) - 1, 1));
+  const end = new Date(Date.UTC(Number(year), Number(month), 1));
+  return { start, end };
+}
+
+function getUtcYearRange(year) {
+  const start = new Date(Date.UTC(Number(year), 0, 1));
+  const end = new Date(Date.UTC(Number(year) + 1, 0, 1));
+  return { start, end };
+}
+
+function toDateLabel(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getRangeFromQuery(query) {
+  const { period = 'custom', date, dateFrom, dateTo, year, month } = query;
+
+  if (period === 'day') {
+    if (!date) throw new Error('date query param required');
+    return { period, start: startOfUtcDay(date), end: endExclusiveOfUtcDay(date) };
+  }
+
+  if (period === 'week') {
+    if (!date) throw new Error('date query param required');
+    return { period, ...getUtcWeekRange(date) };
+  }
+
+  if (period === 'month') {
+    if (!year || !month) throw new Error('year and month query params required');
+    return { period, ...getUtcMonthRange(year, month) };
+  }
+
+  if (period === 'year') {
+    if (!year) throw new Error('year query param required');
+    return { period, ...getUtcYearRange(year) };
+  }
+
+  if (!dateFrom || !dateTo) throw new Error('dateFrom and dateTo query params required');
+  return { period, start: startOfUtcDay(dateFrom), end: endExclusiveOfUtcDay(dateTo) };
+}
+
+async function buildFinancialReport(prisma, { period, start, end }) {
+  const [finances, appointments, statusCounts] = await Promise.all([
+    prisma.finance.findMany({
+      where: { date: { gte: start, lt: end } },
+      orderBy: { date: 'asc' },
+    }),
+    prisma.appointment.findMany({
+      where: {
+        date: { gte: start, lt: end },
+        status: 'COMPLETED',
+      },
+      include: { manicurist: true },
+      orderBy: { date: 'asc' },
+    }),
+    prisma.appointment.groupBy({
+      by: ['status'],
+      where: { date: { gte: start, lt: end } },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const incomes = finances.filter((f) => f.type === 'INCOME');
+  const expenses = finances.filter((f) => f.type === 'EXPENSE');
+
+  const byPaymentMethod = incomes.reduce((acc, f) => {
+    const pm = f.paymentMethod || 'UNKNOWN';
+    acc[pm] = (acc[pm] || 0) + f.amount;
+    return acc;
+  }, {});
+
+  const totalIncome = incomes.reduce((s, f) => s + f.amount, 0);
+  const totalExpenses = expenses.reduce((s, f) => s + f.amount, 0);
+
+  const liquidationMap = {};
+  for (const appt of appointments) {
+    const key = appt.manicurist.id;
+    const paid = Number(appt.finalPricePaid) || 0;
+    const commissionPercentage = Number(appt.manicurist?.commissionPercentage) || 0;
+
+    if (!liquidationMap[key]) {
+      liquidationMap[key] = {
+        name: appt.manicurist.name,
+        commissionPercentage,
+        totalBilled: 0,
+        commissionEarned: 0,
+        appointmentCount: 0,
+      };
+    }
+
+    liquidationMap[key].totalBilled += paid;
+    liquidationMap[key].commissionEarned += paid * (commissionPercentage / 100);
+    liquidationMap[key].appointmentCount += 1;
+  }
+
+  const manicuristLiquidation = Object.values(liquidationMap);
+  const totalCommissions = manicuristLiquidation.reduce(
+    (sum, item) => sum + item.commissionEarned,
+    0
+  );
+  const appointmentStatus = statusCounts.reduce(
+    (acc, item) => ({ ...acc, [item.status]: item._count._all }),
+    { PENDING: 0, COMPLETED: 0, CANCELLED: 0 }
+  );
+  const net = totalIncome - totalExpenses;
+
+  return {
+    period,
+    dateFrom: toDateLabel(start),
+    dateTo: toDateLabel(new Date(end.getTime() - 1)),
+    totalIncome,
+    totalExpenses,
+    net,
+    totalCommissions,
+    netAfterCommissions: net - totalCommissions,
+    byPaymentMethod,
+    appointmentStatus,
+    manicuristLiquidation,
+    financeEntries: finances,
+  };
+}
+
 router.get('/day-close', async (req, res) => {
   try {
     const { date } = req.query;
     if (!date) return res.status(400).json({ error: 'date query param required' });
 
-    const day = new Date(date);
-    day.setUTCHours(0, 0, 0, 0);
-    const nextDay = new Date(day);
-    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-
-    const [finances, appointments] = await Promise.all([
-      req.prisma.finance.findMany({
-        where: { date: { gte: day, lt: nextDay } },
-        orderBy: { date: 'asc' },
-      }),
-      req.prisma.appointment.findMany({
-        where: {
-          date: { gte: day, lt: nextDay },
-          status: 'COMPLETED',
-        },
-        include: { manicurist: true },
-      }),
-    ]);
-
-    const incomes = finances.filter((f) => f.type === 'INCOME');
-    const expenses = finances.filter((f) => f.type === 'EXPENSE');
-
-    const byPaymentMethod = incomes.reduce((acc, f) => {
-      const pm = f.paymentMethod || 'UNKNOWN';
-      acc[pm] = (acc[pm] || 0) + f.amount;
-      return acc;
-    }, {});
-
-    const totalIncome = incomes.reduce((s, f) => s + f.amount, 0);
-    const totalExpenses = expenses.reduce((s, f) => s + f.amount, 0);
-
-    const liquidationMap = {};
-    for (const appt of appointments) {
-      const key = appt.manicurist.id;
-      if (!liquidationMap[key]) {
-        liquidationMap[key] = {
-          name: appt.manicurist.name,
-          commissionPercentage: appt.manicurist.commissionPercentage,
-          totalBilled: 0,
-          commissionEarned: 0,
-          appointmentCount: 0,
-        };
-      }
-      const paid = appt.finalPricePaid || 0;
-      liquidationMap[key].totalBilled += paid;
-      liquidationMap[key].commissionEarned +=
-        paid * (appt.manicurist.commissionPercentage / 100);
-      liquidationMap[key].appointmentCount += 1;
-    }
-
-    res.json({
-      date,
-      totalIncome,
-      totalExpenses,
-      net: totalIncome - totalExpenses,
-      byPaymentMethod,
-      manicuristLiquidation: Object.values(liquidationMap),
-      financeEntries: finances,
+    const report = await buildFinancialReport(req.prisma, {
+      period: 'day',
+      start: startOfUtcDay(date),
+      end: endExclusiveOfUtcDay(date),
     });
+
+    res.json({ date, ...report });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/week-close', async (req, res) => {
+  try {
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ error: 'date query param required' });
+
+    const range = getUtcWeekRange(date);
+    const report = await buildFinancialReport(req.prisma, {
+      period: 'week',
+      ...range,
+    });
+
+    res.json(report);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/summary', async (req, res) => {
+  try {
+    const range = getRangeFromQuery(req.query);
+    const report = await buildFinancialReport(req.prisma, range);
+    res.json(report);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

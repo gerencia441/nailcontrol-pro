@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install server dependencies
+        run: |
+          cd server
+          npm ci
+
+      - name: Install client dependencies
+        run: |
+          cd client
+          npm ci
+
+      - name: Build client
+        run: |
+          cd client
+          npm run build
+
+      - name: Generate Prisma client
+        run: |
+          cd server
+          npx prisma generate --schema=prisma/schema.prisma

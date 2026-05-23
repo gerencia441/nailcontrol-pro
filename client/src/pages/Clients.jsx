@@ -124,19 +124,19 @@ export default function Clients() {
             No hay clientas registradas.
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-pink-50 bg-pink-50/50">
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Nombre</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Teléfono</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Etiquetas</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Notas</th>
-                <th className="px-5 py-3" />
-              </tr>
-            </thead>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-pink-50 bg-pink-50/50">
+                  <th className="text-left px-5 py-3 font-medium text-gray-600">Nombre</th>
+                  <th className="text-left px-5 py-3 font-medium text-gray-600">Teléfono</th>
+                  <th className="text-left px-5 py-3 font-medium text-gray-600">Etiquetas</th>
+                  <th className="text-left px-5 py-3 font-medium text-gray-600">Notas</th>
+                </tr>
+              </thead>
             <tbody>
               {clients.map((c) => (
-                <tr key={c.id} className="border-b border-pink-50 last:border-0 hover:bg-pink-50/30 transition-colors">
+                <tr key={c.id} className="border-b border-pink-50 last:border-0 hover:bg-pink-50/30 transition-colors cursor-pointer" onClick={() => openEdit(c)}>
                   <td className="px-5 py-3 font-medium text-gray-800">{c.name}</td>
                   <td className="px-5 py-3 text-gray-500">{c.phone || '—'}</td>
                   <td className="px-5 py-3">
@@ -155,20 +155,11 @@ export default function Clients() {
                   <td className="px-5 py-3 text-gray-500 max-w-xs truncate">
                     {c.technicalNotes || '—'}
                   </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-1 justify-end">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>
-                        <Pencil size={14} />
-                      </Button>
-                      <Button variant="danger" size="sm" onClick={() => handleDelete(c.id)}>
-                        <Trash2 size={14} />
-                      </Button>
-                    </div>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -220,13 +211,29 @@ export default function Clients() {
               className="w-full px-3 py-2 rounded-xl border border-pink-200 bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-transparent resize-none"
             />
           </div>
-          <div className="flex gap-2 pt-2 justify-end">
-            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Guardando...' : editId ? 'Actualizar' : 'Crear'}
-            </Button>
+          <div className="flex gap-2 pt-2 justify-between">
+            {editId && (
+              <Button
+                type="button"
+                variant="danger"
+                onClick={() => {
+                  if (confirm('¿Eliminar esta clienta?')) {
+                    handleDelete(editId);
+                    setModalOpen(false);
+                  }
+                }}
+              >
+                <Trash2 size={14} /> Eliminar
+              </Button>
+            )}
+            <div className="flex gap-2 ml-auto">
+              <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? 'Guardando...' : editId ? 'Actualizar' : 'Crear'}
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>

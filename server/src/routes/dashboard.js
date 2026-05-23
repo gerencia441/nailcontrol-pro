@@ -1,12 +1,16 @@
 const { Router } = require('express');
+const { bogotaDayRangeToUtc } = require('../lib/bogotaTime');
 const router = Router();
 
 router.get('/', async (req, res) => {
   try {
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    const todayBogota = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+    const { start: today, end: tomorrow } = bogotaDayRangeToUtc(todayBogota);
 
     const [appointmentsToday, pendingCount, cashToday, totalIncomeToday] =
       await Promise.all([

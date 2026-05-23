@@ -7,11 +7,27 @@ import Manicurists from './pages/Manicurists.jsx';
 import Appointments from './pages/Appointments.jsx';
 import Finances from './pages/Finances.jsx';
 import Settings from './pages/Settings.jsx';
+import Login from './pages/Login.jsx';
+import { useAuth } from './lib/AuthContext.jsx';
+
+const ProtectedRoute = ({ children }) => {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
+};
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Layout />}>
+      <Route path="/login" element={<Login />} />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="clients" element={<Clients />} />

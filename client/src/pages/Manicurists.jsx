@@ -95,14 +95,14 @@ export default function Manicurists() {
                 <th className="text-left px-5 py-3 font-medium text-gray-600">Nombre</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-600">Teléfono</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-600">% Comisión</th>
-                <th className="px-5 py-3" />
               </tr>
             </thead>
             <tbody>
               {manicurists.map((m) => (
                 <tr
                   key={m.id}
-                  className="border-b border-pink-50 last:border-0 hover:bg-pink-50/30 transition-colors"
+                  className="border-b border-pink-50 last:border-0 hover:bg-pink-50/30 transition-colors cursor-pointer"
+                  onClick={() => openEdit(m)}
                 >
                   <td className="px-5 py-3 font-medium text-gray-800">{m.name}</td>
                   <td className="px-5 py-3 text-gray-500">{m.phone || '—'}</td>
@@ -111,16 +111,6 @@ export default function Manicurists() {
                       <Percent size={11} />
                       {m.commissionPercentage}%
                     </span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-1 justify-end">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(m)}>
-                        <Pencil size={14} />
-                      </Button>
-                      <Button variant="danger" size="sm" onClick={() => handleDelete(m.id)}>
-                        <Trash2 size={14} />
-                      </Button>
-                    </div>
                   </td>
                 </tr>
               ))}
@@ -162,13 +152,29 @@ export default function Manicurists() {
             required
             placeholder="40"
           />
-          <div className="flex gap-2 pt-2 justify-end">
-            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Guardando...' : editId ? 'Actualizar' : 'Crear'}
-            </Button>
+          <div className="flex gap-2 pt-2 justify-between">
+            {editId && (
+              <Button
+                type="button"
+                variant="danger"
+                onClick={() => {
+                  if (confirm('¿Eliminar esta manicurista?')) {
+                    handleDelete(editId);
+                    setModalOpen(false);
+                  }
+                }}
+              >
+                <Trash2 size={14} /> Eliminar
+              </Button>
+            )}
+            <div className="flex gap-2 ml-auto">
+              <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? 'Guardando...' : editId ? 'Actualizar' : 'Crear'}
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>

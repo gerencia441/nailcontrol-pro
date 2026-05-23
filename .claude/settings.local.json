@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Process node -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force -Confirm:$false)",
+      "Bash(git pull *)",
+      "Bash(git checkout *)"
+    ]
+  }
+}

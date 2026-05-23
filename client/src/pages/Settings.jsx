@@ -16,12 +16,8 @@ export default function Settings() {
   const [flash, setFlash] = useState(null);
 
   useEffect(() => {
-    const result = searchParams.get('google');
-    if (result === 'connected') {
+    if (searchParams.get('google_connected') === '1') {
       setFlash({ type: 'success', message: 'Google Calendar conectado correctamente.' });
-      setSearchParams({}, { replace: true });
-    } else if (result === 'error') {
-      setFlash({ type: 'error', message: 'No se pudo conectar con Google. Intenta de nuevo.' });
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams]);
@@ -37,8 +33,13 @@ export default function Settings() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleConnect = () => {
-    window.location.href = 'http://localhost:3001/api/integrations/google/connect';
+  const handleConnect = async () => {
+    try {
+      const { url } = await api.getGoogleConnectUrl();
+      window.location.href = url;
+    } catch {
+      setFlash({ type: 'error', message: 'No se pudo iniciar la conexión. Intenta de nuevo.' });
+    }
   };
 
   const handleDisconnect = async () => {
@@ -126,8 +127,8 @@ export default function Settings() {
                       placeholder="ejemplo@group.calendar.google.com"
                     />
                     <p className="text-xs text-gray-400">
-                      Encuéntralo en Google Calendar → Configuración del calendario → ID de calendario.
-                      Déjalo vacío para usar el calendario principal.
+                      Google Calendar → Configuración del calendario → ID de calendario.
+                      Vacío = calendario principal.
                     </p>
                     <div className="flex items-center gap-2 pt-1">
                       <Button type="submit" size="sm" disabled={saving || calendarIdInput === calendarId}>

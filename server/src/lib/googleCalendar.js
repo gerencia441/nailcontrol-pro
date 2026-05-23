@@ -1,65 +1,96 @@
 const { google } = require('googleapis');
 
-const OWNER_ID = 'owner';
-const TZ = 'America/Bogota';
-
-function getOAuthClient() {
-  return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT
-  );
+function createOAuthClient() {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirect = process.env.GOOGLE_REDIRECT;
+  if (!clientId || !clientSecret || !redirect) throw new Error('Missing Google OAuth env vars');
+  return new google.auth.OAuth2(clientId, clientSecret, redirect);
 }
 
-function getAuthUrl() {
-  return getOAuthClient().generateAuthUrl({
-    access_type: 'offline',
-    prompt: 'consent',
-    scope: ['https://www.googleapis.com/auth/calendar'],
-  });
+async function getOAuthClientForUser(prisma, userId) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || !user.googleRefreshToken) return null;
+  const oauth2Client = createOAuthClient();
+  oauth2Client.setCredentials({ refresh_token: user.googleRefreshToken });
+  return oauth2Client;
 }
 
-async function getOwnerConfig(prisma) {
-  const user = await prisma.user.findUnique({ where: { id: OWNER_ID } });
-  return {
-    refreshToken: user?.googleRefreshToken ?? null,
-    calendarId: user?.googleCalendarId || 'primary',
-  };
+async function getCalendarId(prisma, userId) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  return user?.googleCalendarId || 'primary';
 }
 
-function buildCalendarClient(refreshToken) {
-  const auth = getOAuthClient();
-  auth.setCredentials({ refresh_token: refreshToken });
-  return google.calendar({ version: 'v3', auth });
+function toISOLocal(date) {
+  // date is a Date or ISO string; return ISO string
+  const d = new Date(date);
+  return d.toISOString();
 }
 
-async function createEvent(refreshToken, calendarId, appointment) {
-  const cal = buildCalendarClient(refreshToken);
-  const start = new Date(appointment.date);
-  const durationMs = (appointment.service?.durationMinutes || 60) * 60_000;
-  const end = new Date(start.getTime() + durationMs);
+async function createEvent(prisma, userId, appt) {
+  const oauth2Client = await getOAuthClientForUser(prisma, userId);
+  if (!oauth2Client) return null;
+  const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
-  const { data } = await cal.events.insert({
-    calendarId: calendarId || 'primary',
+  const start = new Date(appt.date);
+  const end = new Date(start.getTime() + (appt.service?.durationMinutes || 60) * 60000);
+
+  const summary = `${appt.service?.name || 'Cita'} — ${appt.client?.name || ''}`;
+  const description = `Manicurista: ${appt.manicurist?.name || ''}`;
+
+  const res = await calendar.events.insert({
+    calendarId: await getCalendarId(prisma, userId),
     requestBody: {
-      summary: `${appointment.service?.name || 'Cita'} — ${appointment.client?.name || ''}`,
-      description: `Manicurista: ${appointment.manicurist?.name || ''}`,
-      start: { dateTime: start.toISOString(), timeZone: TZ },
-      end: { dateTime: end.toISOString(), timeZone: TZ },
-      colorId: '1',
+      summary,
+      description,
+      start: { dateTime: toISOLocal(start), timeZone: 'America/Bogota' },
+      end: { dateTime: toISOLocal(end), timeZone: 'America/Bogota' },
     },
   });
-  return data.id;
+
+  return res.data.id;
 }
 
-async function deleteEvent(refreshToken, calendarId, googleEventId) {
+async function updateEvent(prisma, userId, appt) {
+  if (!appt.googleEventId) return null;
+  const oauth2Client = await getOAuthClientForUser(prisma, userId);
+  if (!oauth2Client) return null;
+  const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+  const start = new Date(appt.date);
+  const end = new Date(start.getTime() + (appt.service?.durationMinutes || 60) * 60000);
+
+  const summary = `${appt.service?.name || 'Cita'} — ${appt.client?.name || ''}`;
+  const description = `Manicurista: ${appt.manicurist?.name || ''}`;
+
+  const res = await calendar.events.update({
+    calendarId: await getCalendarId(prisma, userId),
+    eventId: appt.googleEventId,
+    requestBody: {
+      summary,
+      description,
+      start: { dateTime: toISOLocal(start), timeZone: 'America/Bogota' },
+      end: { dateTime: toISOLocal(end), timeZone: 'America/Bogota' },
+    },
+  });
+
+  return res.data.id;
+}
+
+async function deleteEvent(prisma, userId, eventId) {
+  if (!eventId) return;
+  const oauth2Client = await getOAuthClientForUser(prisma, userId);
+  if (!oauth2Client) return;
+  const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
   try {
-    const cal = buildCalendarClient(refreshToken);
-    await cal.events.delete({ calendarId: calendarId || 'primary', eventId: googleEventId });
-  } catch (err) {
-    // Event may already be deleted — ignore 404/410
-    if (err.code !== 404 && err.code !== 410) throw err;
+    await calendar.events.delete({ calendarId: await getCalendarId(prisma, userId), eventId });
+  } catch (e) {
+    // ignore not found
   }
 }
 
-module.exports = { getOAuthClient, getAuthUrl, getOwnerConfig, createEvent, deleteEvent, OWNER_ID };
+module.exports = {
+  createEvent,
+  updateEvent,
+  deleteEvent,
+};

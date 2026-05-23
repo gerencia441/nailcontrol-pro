@@ -5,12 +5,15 @@
     "postinstall": "cd server && npm install && cd ../client && npm install",
     "build": "cd client && npm run build && cd ../server && npx prisma generate && npx prisma migrate deploy",
     "start": "node server/src/index.js",
-    "dev:server": "NODE_ENV=development node server/src/index.js",
+    "dev:server": "cross-env NODE_ENV=development node server/src/index.js",
     "dev:client": "cd client && npm run dev",
     "migrate": "cd server && npx prisma migrate deploy",
     "migrate:dev": "cd server && npx prisma migrate dev"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0"
   }
 }
