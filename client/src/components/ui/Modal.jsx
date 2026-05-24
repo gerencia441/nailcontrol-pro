@@ -3,10 +3,9 @@ import { X } from 'lucide-react';
 
 export default function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }) {
   useEffect(() => {
-    const handler = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    if (isOpen) document.addEventListener('keydown', handler);
+    if (!isOpen) return;
+    const handler = (e) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [isOpen, onClose]);
 
@@ -17,20 +16,24 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = 'ma
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-      <div
-        className={`relative bg-white rounded-2xl shadow-xl w-full ${maxWidth} max-h-[90vh] overflow-y-auto`}
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-pink-100">
-          <h2 className="text-base font-semibold text-gray-800">{title}</h2>
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
+
+      <div className={`relative w-full ${maxWidth} bg-white rounded-3xl shadow-modal flex flex-col max-h-[90dvh]`}>
+        {/* Header */}
+        <div className="flex-shrink-0 flex items-center justify-between px-6 py-5 border-b border-gray-100">
+          <h2 className="font-display text-lg text-gray-900">{title}</h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-pink-50 text-gray-400 hover:text-pink-500 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
           >
-            <X size={18} />
+            <X size={17} />
           </button>
         </div>
-        <div className="px-6 py-5">{children}</div>
+
+        {/* Body — scrollable */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 overscroll-contain">
+          {children}
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Menu } from 'lucide-react';
+import { Menu, Scissors } from 'lucide-react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar.jsx';
 
@@ -7,22 +7,30 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-spa-50">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="lg:hidden flex items-center justify-between border-b border-pink-100 bg-white px-4 py-3">
+        {/* Mobile top bar */}
+        <header className="lg:hidden flex items-center justify-between border-b border-gray-200/70 bg-white px-4 py-3 flex-shrink-0">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="inline-flex items-center justify-center p-2 rounded-xl bg-pink-50 text-pink-700 hover:bg-pink-100"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
           >
             <Menu size={20} />
           </button>
-          <div className="text-base font-semibold text-gray-800">NailControl Pro</div>
-          <div className="w-8" />
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-brand-gradient flex items-center justify-center">
+              <Scissors size={12} className="text-white" />
+            </div>
+            <span className="text-sm font-semibold text-gray-800">NailControl Pro</span>
+          </div>
+          <div className="w-9" />
         </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <div className="max-w-[1600px] mx-auto">
+
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="max-w-[1400px] mx-auto animate-in">
             <Outlet />
           </div>
         </main>

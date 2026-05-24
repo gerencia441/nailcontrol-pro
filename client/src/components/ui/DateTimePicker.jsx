@@ -34,14 +34,12 @@ function Wheel({ items, value, onChange }) {
     setTimeout(() => { busy.current = false; }, 350);
   }, []);
 
-  // Snap on mount
   useEffect(() => {
     const idx = items.indexOf(value);
     if (idx >= 0) scrollTo(idx, false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Touch/trackpad scroll → snap after idle
   const handleScroll = useCallback(() => {
     if (busy.current) return;
     clearTimeout(timer.current);
@@ -54,7 +52,6 @@ function Wheel({ items, value, onChange }) {
     }, 100);
   }, [items, onChange, scrollTo]);
 
-  // Mouse wheel → step one item
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
@@ -85,24 +82,20 @@ function Wheel({ items, value, onChange }) {
 
   return (
     <div className="flex flex-col items-center gap-0.5 flex-1">
-      {/* Up button */}
       <button
         type="button"
         onClick={() => step(-1)}
-        className="p-1 text-gray-300 hover:text-gray-500 transition-colors rounded-lg hover:bg-gray-50 disabled:opacity-30"
+        className="p-1 text-gray-300 hover:text-blush-400 transition-colors rounded-lg hover:bg-blush-50 disabled:opacity-30"
         disabled={items.indexOf(value) === 0}
       >
         <ChevronUp size={16} strokeWidth={2.5} />
       </button>
 
-      {/* Scroll wheel */}
       <div className="relative w-full overflow-hidden" style={{ height: containerH }}>
-        {/* selection band */}
         <div
           className="absolute inset-x-0 pointer-events-none z-10 border-y border-gray-200"
           style={{ top: '50%', transform: 'translateY(-50%)', height: ITEM_H }}
         />
-        {/* fades */}
         <div className="absolute inset-x-0 top-0 h-9 pointer-events-none z-20"
              style={{ background: 'linear-gradient(to bottom, white, transparent)' }} />
         <div className="absolute inset-x-0 bottom-0 h-9 pointer-events-none z-20"
@@ -111,7 +104,7 @@ function Wheel({ items, value, onChange }) {
         <div
           ref={listRef}
           onScroll={handleScroll}
-          className="h-full overflow-y-scroll"
+          className="h-full overflow-y-scroll picker-col"
           style={{
             scrollSnapType: 'y mandatory',
             WebkitOverflowScrolling: 'touch',
@@ -146,11 +139,10 @@ function Wheel({ items, value, onChange }) {
         </div>
       </div>
 
-      {/* Down button */}
       <button
         type="button"
         onClick={() => step(1)}
-        className="p-1 text-gray-300 hover:text-gray-500 transition-colors rounded-lg hover:bg-gray-50 disabled:opacity-30"
+        className="p-1 text-gray-300 hover:text-blush-400 transition-colors rounded-lg hover:bg-blush-50 disabled:opacity-30"
         disabled={items.indexOf(value) === items.length - 1}
       >
         <ChevronDown size={16} strokeWidth={2.5} />
@@ -174,29 +166,31 @@ export default function DateTimePicker({ label, value, onChange, required }) {
 
   return (
     <div className="flex flex-col gap-3">
-      {label && <label className="text-xs font-medium text-gray-600">{label}</label>}
+      {label && (
+        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</label>
+      )}
 
       {/* Date */}
       <div className="relative">
-        <CalendarDays size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-pink-400 pointer-events-none" />
+        <CalendarDays size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-blush-400 pointer-events-none" />
         <input
           type="date"
           value={datePart}
           min={todayStr()}
           onChange={(e) => setDate(e.target.value)}
           required={required}
-          className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-pink-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-transparent transition"
+          className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blush-300 focus:border-blush-300 transition"
         />
       </div>
 
       {datePart && (
-        <p className="text-xs font-medium text-pink-500 -mt-1 pl-1 capitalize">
+        <p className="text-xs font-medium text-blush-500 -mt-1 pl-1 capitalize">
           {formatDateDisplay(datePart)}
         </p>
       )}
 
       {/* Wheels */}
-      <div className="rounded-xl border border-gray-100 bg-white shadow-sm px-3 py-1">
+      <div className="rounded-xl border border-gray-100 bg-white shadow-card px-3 py-1">
         <p className="text-xs text-gray-400 text-center mb-1">Hora</p>
         <div className="flex items-center gap-1">
           <Wheel items={HOURS}   value={hour}   onChange={setHour}   />

@@ -8,25 +8,17 @@ import Select from '../components/ui/Select.jsx';
 import { PaymentBadge } from '../components/ui/Badge.jsx';
 
 const formatCurrency = (v) =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0,
-  }).format(v || 0);
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0);
 
 const formatDate = (d) =>
   new Date(d).toLocaleDateString('es-CO', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
 
 function toLocalDateInput(date) {
   const d = new Date(date);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 function toIsoWeekInput(date) {
@@ -50,31 +42,22 @@ function isoWeekToDateInput(value) {
 }
 
 const EMPTY_FORM = {
-  type: 'EXPENSE',
-  amount: '',
-  description: '',
-  date: toLocalDateInput(new Date()),
-  paymentMethod: '',
+  type: 'EXPENSE', amount: '', description: '',
+  date: toLocalDateInput(new Date()), paymentMethod: '',
 };
 
 const paymentLabels = {
-  CASH: 'Efectivo',
-  BANCOLOMBIA: 'Bancolombia',
-  NEQUI: 'Nequi',
-  UNKNOWN: 'Sin metodo',
+  CASH: 'Efectivo', BANCOLOMBIA: 'Bancolombia', NEQUI: 'Nequi', UNKNOWN: 'Sin método',
 };
 
 function SummaryCard({ title, value, tone = 'neutral' }) {
   const tones = {
-    income: 'text-emerald-600',
-    expense: 'text-red-500',
-    neutral: 'text-gray-800',
-    commission: 'text-purple-600',
+    income: 'text-emerald-600', expense: 'text-blush-600',
+    neutral: 'text-gray-800',  commission: 'text-mauve-600',
   };
-
   return (
-    <div className="bg-white rounded-2xl p-5 border border-pink-50 shadow-sm">
-      <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">{title}</p>
+    <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{title}</p>
       <p className={`text-2xl font-bold mt-1 ${tones[tone]}`}>{value}</p>
     </div>
   );
@@ -82,35 +65,26 @@ function SummaryCard({ title, value, tone = 'neutral' }) {
 
 function ReportView({ report }) {
   if (!report) return null;
-
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        <SummaryCard title="Total Ingresos" value={formatCurrency(report.totalIncome)} tone="income" />
-        <SummaryCard title="Total Egresos" value={formatCurrency(report.totalExpenses)} tone="expense" />
-        <SummaryCard title="Neto" value={formatCurrency(report.net)} />
-        <SummaryCard title="Comisiones" value={formatCurrency(report.totalCommissions)} tone="commission" />
-        <SummaryCard
-          title="Balance Final"
-          value={formatCurrency(report.netAfterCommissions)}
-          tone={report.netAfterCommissions >= 0 ? 'neutral' : 'expense'}
-        />
+        <SummaryCard title="Total Ingresos"   value={formatCurrency(report.totalIncome)}           tone="income"     />
+        <SummaryCard title="Total Egresos"    value={formatCurrency(report.totalExpenses)}          tone="expense"    />
+        <SummaryCard title="Neto"             value={formatCurrency(report.net)}                                      />
+        <SummaryCard title="Comisiones"       value={formatCurrency(report.totalCommissions)}       tone="commission" />
+        <SummaryCard title="Balance Final"    value={formatCurrency(report.netAfterCommissions)}
+          tone={report.netAfterCommissions >= 0 ? 'neutral' : 'expense'} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl p-5 border border-pink-50 shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">
-            Ingresos por Metodo de Pago
-          </h3>
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+          <h3 className="section-title mb-3">Ingresos por Método de Pago</h3>
           <div className="space-y-2">
             {Object.entries(report.byPaymentMethod).length === 0 ? (
               <p className="text-sm text-gray-400">Sin ingresos registrados.</p>
             ) : (
               Object.entries(report.byPaymentMethod).map(([method, amount]) => (
-                <div
-                  key={method}
-                  className="flex items-center justify-between py-2 border-b border-pink-50 last:border-0"
-                >
+                <div key={method} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                   <span className="text-sm text-gray-600">{paymentLabels[method] || method}</span>
                   <span className="font-semibold text-emerald-600">{formatCurrency(amount)}</span>
                 </div>
@@ -119,56 +93,46 @@ function ReportView({ report }) {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 border border-pink-50 shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Citas del Periodo</h3>
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+          <h3 className="section-title mb-3">Citas del Periodo</h3>
           <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Pendientes</p>
-              <p className="text-2xl font-bold text-gray-800">{report.appointmentStatus?.PENDING || 0}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Completadas</p>
-              <p className="text-2xl font-bold text-emerald-600">{report.appointmentStatus?.COMPLETED || 0}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Canceladas</p>
-              <p className="text-2xl font-bold text-red-500">{report.appointmentStatus?.CANCELLED || 0}</p>
-            </div>
+            {[
+              { label: 'Pendientes',  value: report.appointmentStatus?.PENDING   || 0, cls: 'text-amber-500'   },
+              { label: 'Completadas', value: report.appointmentStatus?.COMPLETED  || 0, cls: 'text-emerald-600' },
+              { label: 'Canceladas',  value: report.appointmentStatus?.CANCELLED  || 0, cls: 'text-blush-500'   },
+            ].map(({ label, value, cls }) => (
+              <div key={label}>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
+                <p className={`text-2xl font-bold ${cls}`}>{value}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-5 border border-pink-50 shadow-sm overflow-x-auto">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">
-          Liquidacion de Manicuristas
-        </h3>
+      <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card overflow-x-auto">
+        <h3 className="section-title mb-3">Liquidación de Manicuristas</h3>
         {report.manicuristLiquidation.length === 0 ? (
           <p className="text-sm text-gray-400">No hay citas completadas en este periodo.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-pink-50">
-                <th className="text-left py-2 font-medium text-gray-600">Manicurista</th>
-                <th className="text-right py-2 font-medium text-gray-600">Citas</th>
-                <th className="text-right py-2 font-medium text-gray-600">Total Cobrado</th>
-                <th className="text-right py-2 font-medium text-gray-600">% Com.</th>
-                <th className="text-right py-2 font-medium text-gray-600">Ganancias</th>
+              <tr className="border-b border-gray-100">
+                <th className="text-left py-2 table-header">Manicurista</th>
+                <th className="text-right py-2 table-header">Citas</th>
+                <th className="text-right py-2 table-header">Total Cobrado</th>
+                <th className="text-right py-2 table-header">% Com.</th>
+                <th className="text-right py-2 table-header">Ganancias</th>
               </tr>
             </thead>
             <tbody>
               {report.manicuristLiquidation.map((m) => (
-                <tr key={m.name} className="border-b border-pink-50 last:border-0">
-                  <td className="py-3 font-medium text-gray-800">{m.name}</td>
+                <tr key={m.name} className="border-b border-gray-50 last:border-0">
+                  <td className="py-3 font-semibold text-gray-800">{m.name}</td>
                   <td className="py-3 text-right text-gray-500">{m.appointmentCount}</td>
-                  <td className="py-3 text-right text-gray-600">
-                    {formatCurrency(m.totalBilled)}
-                  </td>
-                  <td className="py-3 text-right text-purple-600">
-                    {m.commissionPercentage}%
-                  </td>
-                  <td className="py-3 text-right font-bold text-emerald-600">
-                    {formatCurrency(m.commissionEarned)}
-                  </td>
+                  <td className="py-3 text-right text-gray-600">{formatCurrency(m.totalBilled)}</td>
+                  <td className="py-3 text-right text-mauve-600">{m.commissionPercentage}%</td>
+                  <td className="py-3 text-right font-bold text-emerald-600">{formatCurrency(m.commissionEarned)}</td>
                 </tr>
               ))}
             </tbody>
@@ -176,35 +140,28 @@ function ReportView({ report }) {
         )}
       </div>
 
-      <div className="bg-white rounded-2xl p-5 border border-pink-50 shadow-sm overflow-x-auto">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Transacciones</h3>
+      <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card overflow-x-auto">
+        <h3 className="section-title mb-3">Transacciones</h3>
         {report.financeEntries.length === 0 ? (
           <p className="text-sm text-gray-400">No hay ingresos ni egresos en este periodo.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-pink-50">
-                <th className="text-left py-2 font-medium text-gray-600">Fecha</th>
-                <th className="text-left py-2 font-medium text-gray-600">Descripcion</th>
-                <th className="text-left py-2 font-medium text-gray-600">Tipo</th>
-                <th className="text-right py-2 font-medium text-gray-600">Monto</th>
+              <tr className="border-b border-gray-100">
+                <th className="text-left py-2 table-header">Fecha</th>
+                <th className="text-left py-2 table-header">Descripción</th>
+                <th className="text-left py-2 table-header">Tipo</th>
+                <th className="text-right py-2 table-header">Monto</th>
               </tr>
             </thead>
             <tbody>
               {report.financeEntries.map((f) => (
-                <tr key={f.id} className="border-b border-pink-50 last:border-0">
-                  <td className="py-3 text-gray-500">{formatDate(f.date)}</td>
+                <tr key={f.id} className="border-b border-gray-50 last:border-0">
+                  <td className="py-3 text-gray-400 text-xs">{formatDate(f.date)}</td>
                   <td className="py-3 text-gray-700">{f.description}</td>
-                  <td className="py-3 text-gray-500">
-                    {f.type === 'INCOME' ? 'Ingreso' : 'Egreso'}
-                  </td>
-                  <td
-                    className={`py-3 text-right font-semibold ${
-                      f.type === 'INCOME' ? 'text-emerald-600' : 'text-red-500'
-                    }`}
-                  >
-                    {f.type === 'INCOME' ? '+' : '-'}
-                    {formatCurrency(f.amount)}
+                  <td className="py-3 text-gray-500">{f.type === 'INCOME' ? 'Ingreso' : 'Egreso'}</td>
+                  <td className={`py-3 text-right font-semibold ${f.type === 'INCOME' ? 'text-emerald-600' : 'text-blush-500'}`}>
+                    {f.type === 'INCOME' ? '+' : '-'}{formatCurrency(f.amount)}
                   </td>
                 </tr>
               ))}
@@ -217,92 +174,62 @@ function ReportView({ report }) {
 }
 
 export default function Finances() {
-  const [tab, setTab] = useState('entries');
-  const [finances, setFinances] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
+  const [tab,        setTab]        = useState('entries');
+  const [finances,   setFinances]   = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [modalOpen,  setModalOpen]  = useState(false);
+  const [form,       setForm]       = useState(EMPTY_FORM);
+  const [saving,     setSaving]     = useState(false);
 
-  const [reportDate, setReportDate] = useState(toLocalDateInput(new Date()));
-  const [weekDate, setWeekDate] = useState(toIsoWeekInput(new Date()));
-  const [report, setReport] = useState(null);
-  const [weekReport, setWeekReport] = useState(null);
+  const [reportDate,    setReportDate]    = useState(toLocalDateInput(new Date()));
+  const [weekDate,      setWeekDate]      = useState(toIsoWeekInput(new Date()));
+  const [report,        setReport]        = useState(null);
+  const [weekReport,    setWeekReport]    = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
 
-  const currentYear = new Date().getFullYear();
+  const currentYear  = new Date().getFullYear();
   const currentMonth = String(new Date().getMonth() + 1).padStart(2, '0');
   const [summaryType, setSummaryType] = useState('month');
   const [summaryForm, setSummaryForm] = useState({
-    date: toLocalDateInput(new Date()),
-    year: String(currentYear),
-    month: currentMonth,
-    dateFrom: toLocalDateInput(new Date()),
-    dateTo: toLocalDateInput(new Date()),
+    date: toLocalDateInput(new Date()), year: String(currentYear), month: currentMonth,
+    dateFrom: toLocalDateInput(new Date()), dateTo: toLocalDateInput(new Date()),
   });
-  const [summary, setSummary] = useState(null);
+  const [summary,        setSummary]        = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
 
-  const load = () =>
-    api
-      .getFinances()
-      .then(setFinances)
-      .finally(() => setLoading(false));
-
-  useEffect(() => {
-    load();
-  }, []);
+  const load = () => api.getFinances().then(setFinances).finally(() => setLoading(false));
+  useEffect(() => { load(); }, []);
 
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.createFinance({
-        ...form,
-        paymentMethod: form.paymentMethod || null,
-      });
+      await api.createFinance({ ...form, paymentMethod: form.paymentMethod || null });
       setModalOpen(false);
       setForm(EMPTY_FORM);
       load();
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (err) { alert(err.message); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
     if (!confirm('Eliminar este registro?')) return;
-    try {
-      await api.deleteFinance(id);
-      load();
-    } catch (err) {
-      alert(err.message);
-    }
+    try { await api.deleteFinance(id); load(); }
+    catch (err) { alert(err.message); }
   };
 
   const handleGenerateDayReport = async () => {
     setReportLoading(true);
-    try {
-      const data = await api.getDayClose(reportDate);
-      setReport(data);
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setReportLoading(false);
-    }
+    try { setReport(await api.getDayClose(reportDate)); }
+    catch (err) { alert(err.message); }
+    finally { setReportLoading(false); }
   };
 
   const handleGenerateWeekReport = async () => {
     setReportLoading(true);
-    try {
-      const data = await api.getWeekClose(isoWeekToDateInput(weekDate));
-      setWeekReport(data);
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setReportLoading(false);
-    }
+    try { setWeekReport(await api.getWeekClose(isoWeekToDateInput(weekDate))); }
+    catch (err) { alert(err.message); }
+    finally { setReportLoading(false); }
   };
 
   const handleGenerateSummary = async () => {
@@ -310,50 +237,40 @@ export default function Finances() {
     try {
       const params = { period: summaryType };
       if (summaryType === 'day' || summaryType === 'week') params.date = summaryForm.date;
-      if (summaryType === 'month') {
-        params.year = summaryForm.year;
-        params.month = summaryForm.month;
-      }
-      if (summaryType === 'year') params.year = summaryForm.year;
-      if (summaryType === 'custom') {
-        params.dateFrom = summaryForm.dateFrom;
-        params.dateTo = summaryForm.dateTo;
-      }
-
-      const data = await api.getFinanceSummary(params);
-      setSummary(data);
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setSummaryLoading(false);
-    }
+      if (summaryType === 'month' || summaryType === 'year') params.year = summaryForm.year;
+      if (summaryType === 'month') params.month = summaryForm.month;
+      if (summaryType === 'custom') { params.dateFrom = summaryForm.dateFrom; params.dateTo = summaryForm.dateTo; }
+      setSummary(await api.getFinanceSummary(params));
+    } catch (err) { alert(err.message); }
+    finally { setSummaryLoading(false); }
   };
 
+  const TABS = [
+    { key: 'entries',   label: 'Registros'       },
+    { key: 'dayclose',  label: 'Cierre del Día'  },
+    { key: 'weekclose', label: 'Cierre Semanal'  },
+    { key: 'summary',   label: 'Balance General' },
+  ];
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Finanzas</h1>
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="page-title">Finanzas</h1>
         {tab === 'entries' && (
-          <Button onClick={() => setModalOpen(true)}>
-            <Plus size={16} /> Nuevo Registro
+          <Button onClick={() => setModalOpen(true)} className="self-start sm:self-auto">
+            <Plus size={16} strokeWidth={2.5} /> Nuevo Registro
           </Button>
         )}
       </div>
 
-      <div className="flex gap-2 mb-5 flex-wrap">
-        {[
-          { key: 'entries', label: 'Registros' },
-          { key: 'dayclose', label: 'Cierre del Dia' },
-          { key: 'weekclose', label: 'Cierre Semanal' },
-          { key: 'summary', label: 'Balance General' },
-        ].map(({ key, label }) => (
+      {/* Tabs */}
+      <div className="flex gap-1 bg-white rounded-xl border border-gray-100 p-1 shadow-card w-fit max-w-full overflow-x-auto">
+        {TABS.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-              tab === key
-                ? 'bg-pink-500 text-white'
-                : 'bg-white text-gray-500 border border-pink-100 hover:bg-pink-50'
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+              tab === key ? 'bg-brand-gradient text-white shadow-soft' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             {label}
@@ -361,58 +278,45 @@ export default function Finances() {
         ))}
       </div>
 
+      {/* Entries tab */}
       {tab === 'entries' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-pink-50 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-gray-400 text-sm">Cargando...</div>
           ) : finances.length === 0 ? (
-            <div className="p-8 text-center text-gray-400 text-sm">
-              No hay registros financieros.
-            </div>
+            <div className="p-8 text-center text-gray-400 text-sm">No hay registros financieros.</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b border-pink-50 bg-pink-50/50">
-                    <th className="text-left px-5 py-3 font-medium text-gray-600">Fecha</th>
-                    <th className="text-left px-5 py-3 font-medium text-gray-600">Descripcion</th>
-                    <th className="text-left px-5 py-3 font-medium text-gray-600">Tipo</th>
-                    <th className="text-left px-5 py-3 font-medium text-gray-600">Metodo</th>
-                    <th className="text-right px-5 py-3 font-medium text-gray-600">Monto</th>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="text-left px-5 py-3 table-header">Fecha</th>
+                    <th className="text-left px-5 py-3 table-header">Descripción</th>
+                    <th className="text-left px-5 py-3 table-header">Tipo</th>
+                    <th className="text-left px-5 py-3 table-header">Método</th>
+                    <th className="text-right px-5 py-3 table-header">Monto</th>
                     <th className="px-5 py-3" />
                   </tr>
                 </thead>
                 <tbody>
                   {finances.map((f) => (
-                    <tr
-                      key={f.id}
-                      className="border-b border-pink-50 last:border-0 hover:bg-pink-50/30 transition-colors"
-                    >
-                      <td className="px-5 py-3 text-gray-500 text-xs">{formatDate(f.date)}</td>
-                      <td className="px-5 py-3 text-gray-700 max-w-xs truncate">
-                        {f.description}
-                      </td>
+                    <tr key={f.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
+                      <td className="px-5 py-3 text-gray-400 text-xs">{formatDate(f.date)}</td>
+                      <td className="px-5 py-3 text-gray-700 max-w-xs truncate">{f.description}</td>
                       <td className="px-5 py-3">
                         {f.type === 'INCOME' ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-medium">
+                          <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-semibold">
                             <TrendingUp size={13} /> Ingreso
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-red-500 text-xs font-medium">
+                          <span className="inline-flex items-center gap-1 text-blush-500 text-xs font-semibold">
                             <TrendingDown size={13} /> Egreso
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-3">
-                        <PaymentBadge method={f.paymentMethod} />
-                      </td>
-                      <td
-                        className={`px-5 py-3 text-right font-semibold ${
-                          f.type === 'INCOME' ? 'text-emerald-600' : 'text-red-500'
-                        }`}
-                      >
-                        {f.type === 'INCOME' ? '+' : '-'}
-                        {formatCurrency(f.amount)}
+                      <td className="px-5 py-3"><PaymentBadge method={f.paymentMethod} /></td>
+                      <td className={`px-5 py-3 text-right font-semibold ${f.type === 'INCOME' ? 'text-emerald-600' : 'text-blush-500'}`}>
+                        {f.type === 'INCOME' ? '+' : '-'}{formatCurrency(f.amount)}
                       </td>
                       <td className="px-5 py-3">
                         <Button variant="danger" size="sm" onClick={() => handleDelete(f.id)}>
@@ -428,18 +332,16 @@ export default function Finances() {
         </div>
       )}
 
+      {/* Day close tab */}
       {tab === 'dayclose' && (
         <div className="space-y-5">
-          <div className="bg-white rounded-2xl p-5 border border-pink-50 shadow-sm flex items-end gap-3 flex-wrap">
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card flex items-end gap-3 flex-wrap">
             <Input
               label="Fecha del Cierre"
               id="report-date"
               type="date"
               value={reportDate}
-              onChange={(e) => {
-                setReportDate(e.target.value);
-                setReport(null);
-              }}
+              onChange={(e) => { setReportDate(e.target.value); setReport(null); }}
               className="w-48"
             />
             <Button onClick={handleGenerateDayReport} disabled={reportLoading}>
@@ -451,18 +353,16 @@ export default function Finances() {
         </div>
       )}
 
+      {/* Week close tab */}
       {tab === 'weekclose' && (
         <div className="space-y-5">
-          <div className="bg-white rounded-2xl p-5 border border-pink-50 shadow-sm flex items-end gap-3 flex-wrap">
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card flex items-end gap-3 flex-wrap">
             <Input
               label="Semana"
               id="week-date"
               type="week"
               value={weekDate}
-              onChange={(e) => {
-                setWeekDate(e.target.value);
-                setWeekReport(null);
-              }}
+              onChange={(e) => { setWeekDate(e.target.value); setWeekReport(null); }}
               className="w-48"
             />
             <Button onClick={handleGenerateWeekReport} disabled={reportLoading}>
@@ -471,39 +371,33 @@ export default function Finances() {
             </Button>
           </div>
           {weekReport && (
-            <p className="text-sm text-gray-500">
-              Semana: {weekReport.dateFrom} a {weekReport.dateTo}
-            </p>
+            <p className="text-sm text-gray-400">Semana: {weekReport.dateFrom} a {weekReport.dateTo}</p>
           )}
           <ReportView report={weekReport} />
         </div>
       )}
 
+      {/* Summary tab */}
       {tab === 'summary' && (
         <div className="space-y-5">
-          <div className="bg-white rounded-2xl p-5 border border-pink-50 shadow-sm flex items-end gap-3 flex-wrap">
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card flex items-end gap-3 flex-wrap">
             <Select
               label="Periodo"
               id="summary-period"
               value={summaryType}
-              onChange={(e) => {
-                setSummaryType(e.target.value);
-                setSummary(null);
-              }}
+              onChange={(e) => { setSummaryType(e.target.value); setSummary(null); }}
               className="w-44"
             >
-              <option value="day">Dia</option>
+              <option value="day">Día</option>
               <option value="week">Semana</option>
               <option value="month">Mes</option>
-              <option value="year">Ano</option>
+              <option value="year">Año</option>
               <option value="custom">Rango</option>
             </Select>
 
             {(summaryType === 'day' || summaryType === 'week') && (
               <Input
-                label="Fecha"
-                id="summary-date"
-                type="date"
+                label="Fecha" id="summary-date" type="date"
                 value={summaryForm.date}
                 onChange={(e) => setSummaryForm({ ...summaryForm, date: e.target.value })}
                 className="w-48"
@@ -512,9 +406,7 @@ export default function Finances() {
 
             {(summaryType === 'month' || summaryType === 'year') && (
               <Input
-                label="Ano"
-                id="summary-year"
-                type="number"
+                label="Año" id="summary-year" type="number"
                 value={summaryForm.year}
                 onChange={(e) => setSummaryForm({ ...summaryForm, year: e.target.value })}
                 className="w-32"
@@ -523,47 +415,27 @@ export default function Finances() {
 
             {summaryType === 'month' && (
               <Select
-                label="Mes"
-                id="summary-month"
+                label="Mes" id="summary-month"
                 value={summaryForm.month}
                 onChange={(e) => setSummaryForm({ ...summaryForm, month: e.target.value })}
                 className="w-40"
               >
-                {[
-                  ['01', 'Enero'],
-                  ['02', 'Febrero'],
-                  ['03', 'Marzo'],
-                  ['04', 'Abril'],
-                  ['05', 'Mayo'],
-                  ['06', 'Junio'],
-                  ['07', 'Julio'],
-                  ['08', 'Agosto'],
-                  ['09', 'Septiembre'],
-                  ['10', 'Octubre'],
-                  ['11', 'Noviembre'],
-                  ['12', 'Diciembre'],
-                ].map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
+                {[['01','Enero'],['02','Febrero'],['03','Marzo'],['04','Abril'],['05','Mayo'],
+                  ['06','Junio'],['07','Julio'],['08','Agosto'],['09','Septiembre'],
+                  ['10','Octubre'],['11','Noviembre'],['12','Diciembre']].map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
                 ))}
               </Select>
             )}
 
             {summaryType === 'custom' && (
               <>
-                <Input
-                  label="Desde"
-                  id="summary-from"
-                  type="date"
+                <Input label="Desde" id="summary-from" type="date"
                   value={summaryForm.dateFrom}
                   onChange={(e) => setSummaryForm({ ...summaryForm, dateFrom: e.target.value })}
                   className="w-48"
                 />
-                <Input
-                  label="Hasta"
-                  id="summary-to"
-                  type="date"
+                <Input label="Hasta" id="summary-to" type="date"
                   value={summaryForm.dateTo}
                   onChange={(e) => setSummaryForm({ ...summaryForm, dateTo: e.target.value })}
                   className="w-48"
@@ -578,14 +450,13 @@ export default function Finances() {
           </div>
 
           {summary && (
-            <p className="text-sm text-gray-500">
-              Periodo: {summary.dateFrom} a {summary.dateTo}
-            </p>
+            <p className="text-sm text-gray-400">Periodo: {summary.dateFrom} a {summary.dateTo}</p>
           )}
           <ReportView report={summary} />
         </div>
       )}
 
+      {/* New Finance Modal */}
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -593,8 +464,7 @@ export default function Finances() {
       >
         <form onSubmit={handleSave} className="space-y-4">
           <Select
-            label="Tipo *"
-            id="fin-type"
+            label="Tipo *" id="fin-type"
             value={form.type}
             onChange={(e) => setForm({ ...form, type: e.target.value })}
           >
@@ -602,35 +472,29 @@ export default function Finances() {
             <option value="EXPENSE">Egreso</option>
           </Select>
           <Input
-            label="Descripcion *"
-            id="fin-desc"
+            label="Descripción *" id="fin-desc"
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             required
             placeholder="Ej: Compra de insumos"
           />
           <Input
-            label="Monto (COP) *"
-            id="fin-amount"
-            type="number"
-            min="0"
-            step="1000"
+            label="Monto (COP) *" id="fin-amount"
+            type="number" min="0" step="1000"
             value={form.amount}
             onChange={(e) => setForm({ ...form, amount: e.target.value })}
             required
             placeholder="50000"
           />
           <Input
-            label="Fecha *"
-            id="fin-date"
+            label="Fecha *" id="fin-date"
             type="date"
             value={form.date}
             onChange={(e) => setForm({ ...form, date: e.target.value })}
             required
           />
           <Select
-            label="Metodo de Pago"
-            id="fin-payment"
+            label="Método de Pago" id="fin-payment"
             value={form.paymentMethod}
             onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
           >
@@ -640,9 +504,7 @@ export default function Finances() {
             <option value="NEQUI">Nequi</option>
           </Select>
           <div className="flex gap-2 pt-2 justify-end">
-            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
-              Cancelar
-            </Button>
+            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
             <Button type="submit" disabled={saving}>
               {saving ? 'Guardando...' : 'Registrar'}
             </Button>

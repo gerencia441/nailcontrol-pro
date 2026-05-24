@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Clock, DollarSign } from 'lucide-react';
+import { Plus, Trash2, Clock, DollarSign } from 'lucide-react';
 import { api } from '../lib/api.js';
 import Button from '../components/ui/Button.jsx';
 import Modal from '../components/ui/Modal.jsx';
@@ -9,9 +9,7 @@ const EMPTY_FORM = { name: '', basePrice: '', durationMinutes: '' };
 
 const formatCurrency = (v) =>
   new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0,
+    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
   }).format(v);
 
 export default function Services() {
@@ -22,28 +20,12 @@ export default function Services() {
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  const load = () =>
-    api
-      .getServices()
-      .then(setServices)
-      .finally(() => setLoading(false));
+  const load = () => api.getServices().then(setServices).finally(() => setLoading(false));
+  useEffect(() => { load(); }, []);
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  const openCreate = () => {
-    setForm(EMPTY_FORM);
-    setEditId(null);
-    setModalOpen(true);
-  };
-
-  const openEdit = (s) => {
-    setForm({
-      name: s.name,
-      basePrice: String(s.basePrice),
-      durationMinutes: String(s.durationMinutes),
-    });
+  const openCreate = () => { setForm(EMPTY_FORM); setEditId(null); setModalOpen(true); };
+  const openEdit   = (s) => {
+    setForm({ name: s.name, basePrice: String(s.basePrice), durationMinutes: String(s.durationMinutes) });
     setEditId(s.id);
     setModalOpen(true);
   };
@@ -52,75 +34,63 @@ export default function Services() {
     e.preventDefault();
     setSaving(true);
     try {
-      if (editId) {
-        await api.updateService(editId, form);
-      } else {
-        await api.createService(form);
-      }
+      if (editId) { await api.updateService(editId, form); }
+      else        { await api.createService(form); }
       setModalOpen(false);
       load();
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (err) { alert(err.message); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
     if (!confirm('¿Eliminar este servicio?')) return;
-    try {
-      await api.deleteService(id);
-      load();
-    } catch (err) {
-      alert(err.message);
-    }
+    try { await api.deleteService(id); load(); }
+    catch (err) { alert(err.message); }
   };
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Servicios</h1>
-          <p className="text-sm text-gray-500 mt-1">{services.length} registrados</p>
+          <h1 className="page-title">Servicios</h1>
+          <p className="text-sm text-gray-400 mt-0.5">{services.length} registrados</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus size={16} /> Nuevo Servicio
+        <Button onClick={openCreate} className="self-start sm:self-auto">
+          <Plus size={16} strokeWidth={2.5} /> Nuevo Servicio
         </Button>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-pink-50 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-400 text-sm">Cargando...</div>
         ) : services.length === 0 ? (
-          <div className="p-8 text-center text-gray-400 text-sm">
-            No hay servicios registrados.
-          </div>
+          <div className="p-8 text-center text-gray-400 text-sm">No hay servicios registrados.</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-pink-50 bg-pink-50/50">
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Servicio</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Precio Base</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Duración</th>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="text-left px-5 py-3 table-header">Servicio</th>
+                <th className="text-left px-5 py-3 table-header">Precio Base</th>
+                <th className="text-left px-5 py-3 table-header">Duración</th>
               </tr>
             </thead>
             <tbody>
               {services.map((s) => (
                 <tr
                   key={s.id}
-                  className="border-b border-pink-50 last:border-0 hover:bg-pink-50/30 transition-colors cursor-pointer"
+                  className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors cursor-pointer"
                   onClick={() => openEdit(s)}
                 >
-                  <td className="px-5 py-3 font-medium text-gray-800">{s.name}</td>
+                  <td className="px-5 py-3 font-semibold text-gray-800">{s.name}</td>
                   <td className="px-5 py-3">
-                    <span className="inline-flex items-center gap-1 text-emerald-700">
-                      <DollarSign size={14} />
+                    <span className="inline-flex items-center gap-1 text-emerald-700 font-medium">
+                      <DollarSign size={13} />
                       {formatCurrency(s.basePrice)}
                     </span>
                   </td>
                   <td className="px-5 py-3">
                     <span className="inline-flex items-center gap-1 text-gray-500">
-                      <Clock size={14} />
+                      <Clock size={13} />
                       {s.durationMinutes} min
                     </span>
                   </td>
@@ -171,20 +141,13 @@ export default function Services() {
               <Button
                 type="button"
                 variant="danger"
-                onClick={() => {
-                  if (confirm('¿Eliminar este servicio?')) {
-                    handleDelete(editId);
-                    setModalOpen(false);
-                  }
-                }}
+                onClick={() => { if (confirm('¿Eliminar este servicio?')) { handleDelete(editId); setModalOpen(false); } }}
               >
                 <Trash2 size={14} /> Eliminar
               </Button>
             )}
             <div className="flex gap-2 ml-auto">
-              <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
-                Cancelar
-              </Button>
+              <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
               <Button type="submit" disabled={saving}>
                 {saving ? 'Guardando...' : editId ? 'Actualizar' : 'Crear'}
               </Button>
