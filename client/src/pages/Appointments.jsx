@@ -11,16 +11,20 @@ import { StatusBadge, PaymentBadge } from '../components/ui/Badge.jsx';
 const formatCurrency = (v) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0);
 
-const formatDateTime = (d) =>
-  new Date(d).toLocaleString('es-CO', {
+const formatDateTime = (d) => {
+  const date = new Date(d).toLocaleDateString('es-CO', {
     timeZone: 'America/Bogota', day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
   });
+  const time = new Date(d).toLocaleTimeString('en-US', {
+    timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true,
+  }).toLowerCase();
+  return `${date}, ${time}`;
+};
 
 function formatTime(d) {
-  return new Date(d).toLocaleTimeString('es-CO', {
+  return new Date(d).toLocaleTimeString('en-US', {
     timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true,
-  });
+  }).toLowerCase(); // "10:00 am" / "10:00 pm"
 }
 
 function getBogotaParts(date) {
@@ -366,10 +370,10 @@ export default function Appointments() {
                     {/* Time block */}
                     <div className="w-12 sm:w-14 flex flex-col items-center bg-gray-50 rounded-xl p-2 flex-shrink-0">
                       <span className="text-[9px] text-gray-400 font-medium leading-none">
-                        {formatTime(appt.date).includes('a.') ? 'AM' : 'PM'}
+                        {formatTime(appt.date).includes('am') ? 'AM' : 'PM'}
                       </span>
                       <span className="text-sm font-bold text-gray-800 leading-tight mt-0.5">
-                        {formatTime(appt.date).replace(/\s?(a\.m\.|p\.m\.)/i, '')}
+                        {formatTime(appt.date).replace(/\s(am|pm)$/i, '')}
                       </span>
                     </div>
 
@@ -503,6 +507,11 @@ export default function Appointments() {
           <form onSubmit={handleComplete} className="space-y-4">
             <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1.5">
               <p className="font-semibold text-gray-800">{completeTarget.client?.name}</p>
+              {completeTarget.manicurist?.name && (
+                <p className="text-xs text-gray-400 flex items-center gap-1">
+                  <UserCheck size={11} /> {completeTarget.manicurist.name}
+                </p>
+              )}
               <div className="text-gray-500 space-y-1">
                 {getApptServices(completeTarget).map((sv) => (
                   <div key={sv.id} className="flex justify-between gap-3">
