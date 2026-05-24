@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Percent } from 'lucide-react';
+import { Plus, Trash2, Percent, Phone, Pencil } from 'lucide-react';
 import { api } from '../lib/api.js';
 import Button from '../components/ui/Button.jsx';
 import Modal from '../components/ui/Modal.jsx';
@@ -7,13 +7,25 @@ import Input from '../components/ui/Input.jsx';
 
 const EMPTY_FORM = { name: '', phone: '', commissionPercentage: '' };
 
+const GRADIENTS = [
+  { bg: 'from-blush-100 to-petal-200',   text: 'text-blush-700',  bar: 'from-blush-400 to-petal-500'    },
+  { bg: 'from-violet-100 to-purple-200', text: 'text-violet-700', bar: 'from-violet-400 to-purple-500'  },
+  { bg: 'from-sky-100 to-blue-200',      text: 'text-sky-700',    bar: 'from-sky-400 to-blue-500'       },
+  { bg: 'from-amber-100 to-yellow-200',  text: 'text-amber-700',  bar: 'from-amber-400 to-yellow-500'   },
+  { bg: 'from-emerald-100 to-green-200', text: 'text-emerald-700',bar: 'from-emerald-400 to-green-500'  },
+];
+
+function initials(name = '') {
+  return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+}
+
 export default function Manicurists() {
   const [manicurists, setManicurists] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [editId, setEditId] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [loading,     setLoading]     = useState(true);
+  const [modalOpen,   setModalOpen]   = useState(false);
+  const [form,        setForm]        = useState(EMPTY_FORM);
+  const [editId,      setEditId]      = useState(null);
+  const [saving,      setSaving]      = useState(false);
 
   const load = () => api.getManicurists().then(setManicurists).finally(() => setLoading(false));
   useEffect(() => { load(); }, []);
@@ -21,18 +33,15 @@ export default function Manicurists() {
   const openCreate = () => { setForm(EMPTY_FORM); setEditId(null); setModalOpen(true); };
   const openEdit   = (m) => {
     setForm({ name: m.name, phone: m.phone || '', commissionPercentage: String(m.commissionPercentage) });
-    setEditId(m.id);
-    setModalOpen(true);
+    setEditId(m.id); setModalOpen(true);
   };
 
   const handleSave = async (e) => {
-    e.preventDefault();
-    setSaving(true);
+    e.preventDefault(); setSaving(true);
     try {
       if (editId) { await api.updateManicurist(editId, form); }
       else        { await api.createManicurist(form); }
-      setModalOpen(false);
-      load();
+      setModalOpen(false); load();
     } catch (err) { alert(err.message); }
     finally { setSaving(false); }
   };
@@ -44,101 +53,111 @@ export default function Manicurists() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="page-title">Manicuristas</h1>
-          <p className="text-sm text-gray-400 mt-0.5">{manicurists.length} registradas</p>
+          <p className="text-sm text-gray-400 mt-0.5">{manicurists.length} colaboradoras activas</p>
         </div>
         <Button onClick={openCreate} className="self-start sm:self-auto">
           <Plus size={16} strokeWidth={2.5} /> Nueva Manicurista
         </Button>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-gray-400 text-sm">Cargando...</div>
-        ) : manicurists.length === 0 ? (
-          <div className="p-8 text-center text-gray-400 text-sm">No hay manicuristas registradas.</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left px-5 py-3 table-header">Nombre</th>
-                <th className="text-left px-5 py-3 table-header">Teléfono</th>
-                <th className="text-left px-5 py-3 table-header">% Comisión</th>
-              </tr>
-            </thead>
-            <tbody>
-              {manicurists.map((m) => (
-                <tr
-                  key={m.id}
-                  className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => openEdit(m)}
-                >
-                  <td className="px-5 py-3 font-semibold text-gray-800">{m.name}</td>
-                  <td className="px-5 py-3 text-gray-500">{m.phone || '—'}</td>
-                  <td className="px-5 py-3">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-mauve-100 text-mauve-700 text-xs font-medium">
-                      <Percent size={11} />
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="bg-white rounded-2xl h-52 animate-pulse border border-gray-100 shadow-card" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          {manicurists.map((m, i) => {
+            const g = GRADIENTS[i % GRADIENTS.length];
+            return (
+              <div
+                key={m.id}
+                className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden hover:shadow-card-hover transition-all group"
+              >
+                {/* Color strip */}
+                <div className={`h-2 bg-gradient-to-r ${g.bar}`} />
+
+                <div className="p-5">
+                  {/* Avatar + name */}
+                  <div className="flex items-start gap-3 mb-5">
+                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${g.bg} flex items-center justify-center flex-shrink-0`}>
+                      <span className={`text-sm font-bold ${g.text}`}>{initials(m.name)}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-800">{m.name}</h3>
+                      {m.phone && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <Phone size={11} className="text-gray-300" />
+                          <span className="text-xs text-gray-400">{m.phone}</span>
+                        </div>
+                      )}
+                    </div>
+                    <span className="flex items-center gap-1 text-xs font-bold text-gray-500 bg-gray-50 px-2 py-1 rounded-lg flex-shrink-0">
+                      <Percent size={10} />
                       {m.commissionPercentage}%
                     </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                  </div>
 
-      <Modal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={editId ? 'Editar Manicurista' : 'Nueva Manicurista'}
-      >
+                  {/* Commission info */}
+                  <div className="bg-gray-50 rounded-xl p-3 mb-4">
+                    <p className="text-xs text-gray-400 mb-1">Comisión sobre cobros</p>
+                    <p className="text-lg font-bold text-gray-800">{m.commissionPercentage}%</p>
+                  </div>
+
+                  {/* Actions — visible on hover */}
+                  <div className="flex gap-2 border-t border-gray-50 pt-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => openEdit(m)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium text-gray-500 hover:bg-blush-50 hover:text-blush-600 border border-gray-100 transition-colors"
+                    >
+                      <Pencil size={12} /> Editar
+                    </button>
+                    <button
+                      onClick={() => handleDelete(m.id)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium text-gray-500 hover:bg-red-50 hover:text-red-500 border border-gray-100 transition-colors"
+                    >
+                      <Trash2 size={12} /> Eliminar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Add card */}
+          <button
+            onClick={openCreate}
+            className="rounded-2xl border-2 border-dashed border-blush-200 flex flex-col items-center justify-center gap-2 text-blush-300 hover:border-blush-400 hover:text-blush-500 hover:bg-blush-50 transition-all min-h-[240px]"
+          >
+            <Plus size={22} strokeWidth={1.5} />
+            <span className="text-xs font-medium">Agregar colaboradora</span>
+          </button>
+        </div>
+      )}
+
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'Editar Manicurista' : 'Nueva Manicurista'}>
         <form onSubmit={handleSave} className="space-y-4">
-          <Input
-            label="Nombre *"
-            id="man-name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            required
-            placeholder="Nombre completo"
-          />
-          <Input
-            label="Teléfono"
-            id="man-phone"
-            value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            placeholder="300 000 0000"
-          />
-          <Input
-            label="% de Comisión *"
-            id="man-commission"
-            type="number"
-            min="0"
-            max="100"
-            step="0.5"
-            value={form.commissionPercentage}
-            onChange={(e) => setForm({ ...form, commissionPercentage: e.target.value })}
-            required
-            placeholder="40"
-          />
+          <Input label="Nombre *" id="man-name" value={form.name} required placeholder="Nombre completo"
+            onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <Input label="Teléfono" id="man-phone" value={form.phone} placeholder="300 000 0000"
+            onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <Input label="% de Comisión *" id="man-commission" type="number" min="0" max="100" step="0.5" value={form.commissionPercentage} required placeholder="40"
+            onChange={(e) => setForm({ ...form, commissionPercentage: e.target.value })} />
           <div className="flex gap-2 pt-2 justify-between">
             {editId && (
-              <Button
-                type="button"
-                variant="danger"
-                onClick={() => { if (confirm('¿Eliminar esta manicurista?')) { handleDelete(editId); setModalOpen(false); } }}
-              >
+              <Button type="button" variant="danger"
+                onClick={() => { if (confirm('¿Eliminar esta manicurista?')) { handleDelete(editId); setModalOpen(false); } }}>
                 <Trash2 size={14} /> Eliminar
               </Button>
             )}
             <div className="flex gap-2 ml-auto">
               <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Guardando...' : editId ? 'Actualizar' : 'Crear'}
-              </Button>
+              <Button type="submit" disabled={saving}>{saving ? 'Guardando...' : editId ? 'Actualizar' : 'Crear'}</Button>
             </div>
           </div>
         </form>
