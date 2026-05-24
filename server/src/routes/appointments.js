@@ -62,8 +62,8 @@ router.post('/', async (req, res) => {
       const created = await req.prisma.client.create({
         data: {
           name: newClient.name,
-          phone: newClient.phone,
-          tags: [],
+          phone: newClient.phone || null,
+          tags: '[]',
         },
       });
       resolvedClientId = created.id;
