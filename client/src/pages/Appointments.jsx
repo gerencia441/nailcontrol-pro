@@ -362,7 +362,7 @@ export default function Appointments() {
                 return (
                   <div
                     key={appt.id}
-                    className="bg-white rounded-2xl border border-gray-100 shadow-card p-3 sm:p-4 flex items-center gap-3 sm:gap-4 hover:shadow-card-hover transition-all cursor-pointer"
+                    className="bg-white rounded-2xl border border-gray-100 shadow-card px-3 py-4 sm:px-4 sm:py-5 flex items-center gap-3 sm:gap-4 hover:shadow-card-hover transition-all cursor-pointer"
                     style={apptCardStyle(resolveManicuristColor(appt.manicurist))}
                     onClick={() => {
                       if (appt.status === 'PENDING') { openComplete(appt); }
@@ -409,7 +409,7 @@ export default function Appointments() {
                         <>
                           <button
                             onClick={() => openEdit(appt)}
-                            className="w-7 h-7 hidden sm:flex items-center justify-center rounded-lg text-gray-400 hover:bg-blush-50 hover:text-blush-600 transition-colors"
+                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-blush-50 hover:text-blush-600 transition-colors"
                           >
                             <Pencil size={13} />
                           </button>
@@ -539,9 +539,15 @@ export default function Appointments() {
               <option value="BANCOLOMBIA">Bancolombia</option>
               <option value="NEQUI">Nequi</option>
             </Select>
-            <div className="flex gap-2 pt-2 justify-end">
-              <Button type="button" variant="ghost" onClick={() => setCompleteModal(false)}>Cancelar</Button>
-              <Button type="submit" disabled={completing}>{completing ? 'Procesando...' : 'Cobrar y Cerrar'}</Button>
+            <div className="flex gap-2 pt-2 justify-between">
+              <Button type="button" variant="ghost"
+                onClick={() => { setCompleteModal(false); openEdit(completeTarget); }}>
+                <Pencil size={14} /> Editar cita
+              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="ghost" onClick={() => setCompleteModal(false)}>Cancelar</Button>
+                <Button type="submit" disabled={completing}>{completing ? 'Procesando...' : 'Cobrar y Cerrar'}</Button>
+              </div>
             </div>
           </form>
         )}
