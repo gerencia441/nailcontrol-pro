@@ -7,17 +7,6 @@ import Input from '../components/ui/Input.jsx';
 
 const EMPTY_FORM = { name: '', phone: '', birthDate: '', tags: '', technicalNotes: '' };
 
-function initials(name = '') {
-  return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
-}
-
-function Avatar({ name }) {
-  return (
-    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-blush-100 to-petal-200 flex items-center justify-center flex-shrink-0">
-      <span className="text-xs font-bold text-blush-700">{initials(name)}</span>
-    </div>
-  );
-}
 
 function TagChip({ tag }) {
   return (
@@ -120,7 +109,6 @@ export default function Clients() {
                 {clients.map((c) => (
                   <div key={c.id} className="grid grid-cols-[2fr_1fr_2fr_auto] gap-4 items-center px-5 py-3.5 hover:bg-gray-50 transition-colors group">
                     <div className="flex items-center gap-3 min-w-0">
-                      <Avatar name={c.name} />
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
                         {c.technicalNotes && (
@@ -161,7 +149,6 @@ export default function Clients() {
             <div className="md:hidden divide-y divide-gray-50">
               {clients.map((c) => (
                 <div key={c.id} className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors">
-                  <Avatar name={c.name} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
                     <div className="flex items-center gap-1 mt-0.5">
