@@ -7,6 +7,7 @@ import Input from '../components/ui/Input.jsx';
 import Select from '../components/ui/Select.jsx';
 import DateTimePicker from '../components/ui/DateTimePicker.jsx';
 import { StatusBadge, PaymentBadge } from '../components/ui/Badge.jsx';
+import { resolveManicuristColor, apptCardStyle } from '../lib/manicuristColors.js';
 
 const formatCurrency = (v) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0);
@@ -362,6 +363,7 @@ export default function Appointments() {
                   <div
                     key={appt.id}
                     className="bg-white rounded-2xl border border-gray-100 shadow-card p-3 sm:p-4 flex items-center gap-3 sm:gap-4 hover:shadow-card-hover transition-all cursor-pointer"
+                    style={apptCardStyle(resolveManicuristColor(appt.manicurist))}
                     onClick={() => {
                       if (appt.status === 'PENDING') { openComplete(appt); }
                       else { setDetailsTarget(appt); setDetailsModal(true); }
@@ -505,13 +507,17 @@ export default function Appointments() {
       <Modal isOpen={completeModal} onClose={() => setCompleteModal(false)} title="Finalizar Servicio" maxWidth="max-w-sm">
         {completeTarget && (
           <form onSubmit={handleComplete} className="space-y-4">
-            <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1.5">
+            <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1.5"
+              style={{ borderLeft: `4px solid ${resolveManicuristColor(completeTarget.manicurist)}` }}>
               <p className="font-semibold text-gray-800">{completeTarget.client?.name}</p>
               {completeTarget.manicurist?.name && (
                 <p className="text-xs text-gray-400 flex items-center gap-1">
                   <UserCheck size={11} /> {completeTarget.manicurist.name}
                 </p>
               )}
+              <p className="text-xs text-gray-400 flex items-center gap-1">
+                <Clock size={11} /> {formatDateTime(completeTarget.date)}
+              </p>
               <div className="text-gray-500 space-y-1">
                 {getApptServices(completeTarget).map((sv) => (
                   <div key={sv.id} className="flex justify-between gap-3">
@@ -545,7 +551,8 @@ export default function Appointments() {
       <Modal isOpen={detailsModal} onClose={() => setDetailsModal(false)} title="Detalles de la Cita" maxWidth="max-w-sm">
         {detailsTarget && (
           <div className="space-y-4">
-            <div className="bg-gray-50 rounded-xl p-4 space-y-2.5 text-sm">
+            <div className="bg-gray-50 rounded-xl p-4 space-y-2.5 text-sm"
+              style={{ borderLeft: `4px solid ${resolveManicuristColor(detailsTarget.manicurist)}` }}>
               {[
                 ['Clienta',     detailsTarget.client?.name],
                 ['Manicurista', detailsTarget.manicurist?.name],

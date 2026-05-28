@@ -142,7 +142,11 @@ router.patch('/:id/complete', async (req, res) => {
           type: 'INCOME',
           amount: paid,
           description: `${serviceNames} - ${appt.client.name}`,
-          date: new Date(),
+          // El ingreso se fecha con la fecha de la cita (no el momento de
+          // marcar "completada") para que el cierre del día lo agrupe en el
+          // mismo día que la cita y el total general coincida con la suma de
+          // los servicios del día.
+          date: appt.date,
           paymentMethod,
         },
       });

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CalendarDays, Clock, DollarSign, TrendingUp, UserCheck, ArrowUpRight } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { StatusBadge } from '../components/ui/Badge.jsx';
+import { resolveManicuristColor, apptCardStyle } from '../lib/manicuristColors.js';
 
 const formatCurrency = (v) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0);
@@ -114,7 +115,8 @@ export default function Dashboard() {
         ) : (
           <div className="divide-y divide-gray-50">
             {todayAppts.map((appt) => (
-              <div key={appt.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3 hover:bg-gray-50 transition-colors">
+              <div key={appt.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3 transition-colors"
+                style={apptCardStyle(resolveManicuristColor(appt.manicurist))}>
                 {/* Time */}
                 <div className="flex items-center gap-1 w-16 sm:w-20 flex-shrink-0">
                   <Clock size={12} className="text-gray-300 hidden sm:block" />

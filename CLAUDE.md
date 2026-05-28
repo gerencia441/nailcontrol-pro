@@ -112,7 +112,7 @@ Proveedor: `mysql`. Los IDs son CUID.
 ```
 Client         — id, name, birthDate?, phone?, tags (LongText JSON), technicalNotes?, createdAt, updatedAt
 Service        — id, name, basePrice, durationMinutes, createdAt, updatedAt
-Manicurist     — id, name, phone?, commissionPercentage, createdAt, updatedAt
+Manicurist     — id, name, phone?, commissionPercentage, color? (hex pastel para identificar sus citas), createdAt, updatedAt
 Appointment    — id, clientId, manicuristId, date, status, finalPricePaid?, paymentMethod?, googleEventId?
 AppointmentService — appointmentId + serviceId (tabla junction, onDelete Cascade)
 Finance        — id, type (INCOME|EXPENSE), amount, description, date, paymentMethod?

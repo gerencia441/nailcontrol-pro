@@ -4,7 +4,11 @@
       "PowerShell(Get-Process node -ErrorAction SilentlyContinue)",
       "PowerShell(Stop-Process -Force -Confirm:$false)",
       "Bash(git pull *)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(npx prisma *)",
+      "Bash(node -c server/src/routes/manicurists.js)",
+      "Bash(npm run *)",
+      "Bash(netstat -ano)"
     ]
   }
 }

@@ -4,16 +4,9 @@ import { api } from '../lib/api.js';
 import Button from '../components/ui/Button.jsx';
 import Modal from '../components/ui/Modal.jsx';
 import Input from '../components/ui/Input.jsx';
+import { MANICURIST_PALETTE, resolveManicuristColor } from '../lib/manicuristColors.js';
 
-const EMPTY_FORM = { name: '', phone: '', commissionPercentage: '' };
-
-const GRADIENTS = [
-  { bg: 'from-blush-100 to-petal-200',   text: 'text-blush-700',  bar: 'from-blush-400 to-petal-500'    },
-  { bg: 'from-violet-100 to-purple-200', text: 'text-violet-700', bar: 'from-violet-400 to-purple-500'  },
-  { bg: 'from-sky-100 to-blue-200',      text: 'text-sky-700',    bar: 'from-sky-400 to-blue-500'       },
-  { bg: 'from-amber-100 to-yellow-200',  text: 'text-amber-700',  bar: 'from-amber-400 to-yellow-500'   },
-  { bg: 'from-emerald-100 to-green-200', text: 'text-emerald-700',bar: 'from-emerald-400 to-green-500'  },
-];
+const EMPTY_FORM = { name: '', phone: '', commissionPercentage: '', color: '' };
 
 function initials(name = '') {
   return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
@@ -30,9 +23,18 @@ export default function Manicurists() {
   const load = () => api.getManicurists().then(setManicurists).finally(() => setLoading(false));
   useEffect(() => { load(); }, []);
 
-  const openCreate = () => { setForm(EMPTY_FORM); setEditId(null); setModalOpen(true); };
+  const openCreate = () => {
+    // Asigna por defecto el primer color de la paleta que no esté en uso.
+    const used = new Set(manicurists.map((m) => m.color).filter(Boolean));
+    const defaultColor = MANICURIST_PALETTE.find((c) => !used.has(c)) || MANICURIST_PALETTE[0];
+    setForm({ ...EMPTY_FORM, color: defaultColor });
+    setEditId(null); setModalOpen(true);
+  };
   const openEdit   = (m) => {
-    setForm({ name: m.name, phone: m.phone || '', commissionPercentage: String(m.commissionPercentage) });
+    setForm({
+      name: m.name, phone: m.phone || '', commissionPercentage: String(m.commissionPercentage),
+      color: m.color || resolveManicuristColor(m),
+    });
     setEditId(m.id); setModalOpen(true);
   };
 
@@ -72,21 +74,21 @@ export default function Manicurists() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-          {manicurists.map((m, i) => {
-            const g = GRADIENTS[i % GRADIENTS.length];
+          {manicurists.map((m) => {
+            const color = resolveManicuristColor(m);
             return (
               <div
                 key={m.id}
                 className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden hover:shadow-card-hover transition-all group"
               >
-                {/* Color strip */}
-                <div className={`h-2 bg-gradient-to-r ${g.bar}`} />
+                {/* Color strip — color de identificación de la manicurista */}
+                <div className="h-2" style={{ backgroundColor: color }} />
 
                 <div className="p-5">
                   {/* Avatar + name */}
                   <div className="flex items-start gap-3 mb-5">
-                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${g.bg} flex items-center justify-center flex-shrink-0`}>
-                      <span className={`text-sm font-bold ${g.text}`}>{initials(m.name)}</span>
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: color }}>
+                      <span className="text-sm font-bold text-gray-700">{initials(m.name)}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-gray-800">{m.name}</h3>
@@ -148,6 +150,29 @@ export default function Manicurists() {
             onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           <Input label="% de Comisión *" id="man-commission" type="number" min="0" max="100" step="0.5" value={form.commissionPercentage} required placeholder="40"
             onChange={(e) => setForm({ ...form, commissionPercentage: e.target.value })} />
+
+          {/* Color de identificación */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Color de identificación</span>
+            <p className="text-xs text-gray-400 -mt-0.5">Identifica las citas de esta manicurista en toda la app.</p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {MANICURIST_PALETTE.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setForm({ ...form, color: c })}
+                  aria-label={`Color ${c}`}
+                  className={`w-8 h-8 rounded-full transition-all ${
+                    form.color === c
+                      ? 'ring-2 ring-offset-2 ring-gray-400 scale-110'
+                      : 'border border-gray-200 hover:scale-105'
+                  }`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          </div>
+
           <div className="flex gap-2 pt-2 justify-between">
             {editId && (
               <Button type="button" variant="danger"

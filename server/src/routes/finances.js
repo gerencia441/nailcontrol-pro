@@ -1,44 +1,54 @@
 const { Router } = require('express');
 const router = Router();
 
-function startOfUtcDay(value) {
+// Todas las citas y finanzas se guardan en UTC pero representan hora local de
+// Bogotá (UTC−5, sin horario de verano). Un día de Bogotá [00:00, 24:00) equivale
+// al rango UTC [05:00, 05:00 del día siguiente). Estos helpers construyen los
+// rangos de cada período alineados al día de Bogotá, igual que el resto de la app
+// (appointments.js y dashboard.js usan bogotaDayRangeToUtc).
+const BOGOTA_OFFSET_MS = 5 * 60 * 60 * 1000;
+
+function startOfBogotaDay(value) {
   const date = new Date(value);
   date.setUTCHours(0, 0, 0, 0);
-  return date;
+  return new Date(date.getTime() + BOGOTA_OFFSET_MS);
 }
 
-function endExclusiveOfUtcDay(value) {
-  const date = startOfUtcDay(value);
+function endExclusiveOfBogotaDay(value) {
+  const date = startOfBogotaDay(value);
   date.setUTCDate(date.getUTCDate() + 1);
   return date;
 }
 
-function getUtcWeekRange(value) {
-  const start = startOfUtcDay(value);
-  const day = start.getUTCDay();
+function getBogotaWeekRange(value) {
+  const base = new Date(value);
+  base.setUTCHours(0, 0, 0, 0);
+  const day = base.getUTCDay();
   const daysFromMonday = day === 0 ? 6 : day - 1;
-  start.setUTCDate(start.getUTCDate() - daysFromMonday);
+  base.setUTCDate(base.getUTCDate() - daysFromMonday);
 
+  const start = new Date(base.getTime() + BOGOTA_OFFSET_MS);
   const end = new Date(start);
   end.setUTCDate(end.getUTCDate() + 7);
 
   return { start, end };
 }
 
-function getUtcMonthRange(year, month) {
-  const start = new Date(Date.UTC(Number(year), Number(month) - 1, 1));
-  const end = new Date(Date.UTC(Number(year), Number(month), 1));
+function getBogotaMonthRange(year, month) {
+  const start = new Date(Date.UTC(Number(year), Number(month) - 1, 1) + BOGOTA_OFFSET_MS);
+  const end = new Date(Date.UTC(Number(year), Number(month), 1) + BOGOTA_OFFSET_MS);
   return { start, end };
 }
 
-function getUtcYearRange(year) {
-  const start = new Date(Date.UTC(Number(year), 0, 1));
-  const end = new Date(Date.UTC(Number(year) + 1, 0, 1));
+function getBogotaYearRange(year) {
+  const start = new Date(Date.UTC(Number(year), 0, 1) + BOGOTA_OFFSET_MS);
+  const end = new Date(Date.UTC(Number(year) + 1, 0, 1) + BOGOTA_OFFSET_MS);
   return { start, end };
 }
 
+// Convierte un instante UTC a la fecha calendario de Bogotá para mostrarla.
 function toDateLabel(date) {
-  return date.toISOString().slice(0, 10);
+  return new Date(date.getTime() - BOGOTA_OFFSET_MS).toISOString().slice(0, 10);
 }
 
 function getRangeFromQuery(query) {
@@ -46,26 +56,26 @@ function getRangeFromQuery(query) {
 
   if (period === 'day') {
     if (!date) throw new Error('date query param required');
-    return { period, start: startOfUtcDay(date), end: endExclusiveOfUtcDay(date) };
+    return { period, start: startOfBogotaDay(date), end: endExclusiveOfBogotaDay(date) };
   }
 
   if (period === 'week') {
     if (!date) throw new Error('date query param required');
-    return { period, ...getUtcWeekRange(date) };
+    return { period, ...getBogotaWeekRange(date) };
   }
 
   if (period === 'month') {
     if (!year || !month) throw new Error('year and month query params required');
-    return { period, ...getUtcMonthRange(year, month) };
+    return { period, ...getBogotaMonthRange(year, month) };
   }
 
   if (period === 'year') {
     if (!year) throw new Error('year query param required');
-    return { period, ...getUtcYearRange(year) };
+    return { period, ...getBogotaYearRange(year) };
   }
 
   if (!dateFrom || !dateTo) throw new Error('dateFrom and dateTo query params required');
-  return { period, start: startOfUtcDay(dateFrom), end: endExclusiveOfUtcDay(dateTo) };
+  return { period, start: startOfBogotaDay(dateFrom), end: endExclusiveOfBogotaDay(dateTo) };
 }
 
 async function buildFinancialReport(prisma, { period, start, end }) {
@@ -156,8 +166,8 @@ router.get('/day-close', async (req, res) => {
 
     const report = await buildFinancialReport(req.prisma, {
       period: 'day',
-      start: startOfUtcDay(date),
-      end: endExclusiveOfUtcDay(date),
+      start: startOfBogotaDay(date),
+      end: endExclusiveOfBogotaDay(date),
     });
 
     res.json({ date, ...report });
@@ -171,7 +181,7 @@ router.get('/week-close', async (req, res) => {
     const { date } = req.query;
     if (!date) return res.status(400).json({ error: 'date query param required' });
 
-    const range = getUtcWeekRange(date);
+    const range = getBogotaWeekRange(date);
     const report = await buildFinancialReport(req.prisma, {
       period: 'week',
       ...range,

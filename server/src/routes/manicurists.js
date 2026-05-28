@@ -26,12 +26,13 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { name, phone, commissionPercentage } = req.body;
+    const { name, phone, commissionPercentage, color } = req.body;
     const manicurist = await req.prisma.manicurist.create({
       data: {
         name,
         phone,
         commissionPercentage: parseFloat(commissionPercentage),
+        color: color || null,
       },
     });
     res.status(201).json(manicurist);
@@ -42,13 +43,14 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { name, phone, commissionPercentage } = req.body;
+    const { name, phone, commissionPercentage, color } = req.body;
     const manicurist = await req.prisma.manicurist.update({
       where: { id: req.params.id },
       data: {
         name,
         phone,
         commissionPercentage: parseFloat(commissionPercentage),
+        ...(color !== undefined && { color: color || null }),
       },
     });
     res.json(manicurist);
