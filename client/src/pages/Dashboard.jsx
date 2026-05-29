@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { CalendarDays, Clock, DollarSign, TrendingUp, UserCheck, ArrowUpRight } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { StatusBadge } from '../components/ui/Badge.jsx';
@@ -23,9 +24,9 @@ function initials(name = '') {
   return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 }
 
-function StatCard({ label, value, sub, Icon, iconCls }) {
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5 flex flex-col gap-3">
+function StatCard({ label, value, sub, Icon, iconCls, to }) {
+  const inner = (
+    <>
       <div className="flex items-start justify-between">
         <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${iconCls}`}>
           <Icon size={18} className="text-white" strokeWidth={2} />
@@ -40,8 +41,14 @@ function StatCard({ label, value, sub, Icon, iconCls }) {
         <p className="text-sm text-gray-500 mt-0.5">{label}</p>
         {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
       </div>
-    </div>
+    </>
   );
+
+  const cls = "bg-white rounded-2xl border border-gray-100 shadow-card p-5 flex flex-col gap-3 hover:shadow-card-hover hover:-translate-y-0.5 transition-all";
+
+  return to
+    ? <Link to={to} className={cls}>{inner}</Link>
+    : <div className={cls}>{inner}</div>;
 }
 
 export default function Dashboard() {
@@ -92,10 +99,10 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <StatCard label="Citas hoy"           value={data?.appointmentsToday ?? 0}        sub="agendadas"               Icon={CalendarDays} iconCls="bg-mauve-400"  />
-          <StatCard label="Ingresos del día"    value={formatCurrency(data?.totalIncomeToday)} sub="todos los métodos"     Icon={DollarSign}   iconCls="bg-blush-400" />
-          <StatCard label="Pendientes de cobro" value={data?.pendingCount ?? 0}              sub="citas sin finalizar"     Icon={Clock}        iconCls="bg-amber-400" />
-          <StatCard label="Efectivo hoy"        value={formatCurrency(data?.cashToday)}      sub="ingresos en efectivo"   Icon={TrendingUp}   iconCls="bg-emerald-500"/>
+          <StatCard label="Citas hoy"           value={data?.appointmentsToday ?? 0}          sub="agendadas"             Icon={CalendarDays} iconCls="bg-mauve-400"   to="/appointments" />
+          <StatCard label="Ingresos del día"    value={formatCurrency(data?.totalIncomeToday)} sub="todos los métodos"   Icon={DollarSign}   iconCls="bg-blush-400"   to="/finances"     />
+          <StatCard label="Pendientes de cobro" value={data?.pendingCount ?? 0}              sub="citas sin finalizar"   Icon={Clock}        iconCls="bg-amber-400"   to="/appointments" />
+          <StatCard label="Efectivo hoy"        value={formatCurrency(data?.cashToday)}      sub="ingresos en efectivo"  Icon={TrendingUp}   iconCls="bg-emerald-500"  to="/finances"     />
         </div>
       )}
 

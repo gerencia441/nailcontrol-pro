@@ -2,7 +2,6 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
-  Scissors,
   UserCheck,
   CalendarDays,
   DollarSign,
@@ -10,13 +9,15 @@ import {
   X,
   Settings,
 } from 'lucide-react';
+
+const NailIcon = () => <img src="/logonailcontrol.png" alt="" className="w-5 h-5 object-contain" />;
 import { useAuth } from '../lib/AuthContext';
 
 const links = [
   { to: '/dashboard',   label: 'Dashboard',    Icon: LayoutDashboard },
   { to: '/appointments',label: 'Citas',         Icon: CalendarDays    },
   { to: '/clients',     label: 'Clientas',      Icon: Users           },
-  { to: '/services',    label: 'Servicios',     Icon: Scissors        },
+  { to: '/services',    label: 'Servicios',     Icon: NailIcon        },
   { to: '/manicurists', label: 'Manicuristas',  Icon: UserCheck       },
   { to: '/finances',    label: 'Finanzas',      Icon: DollarSign      },
   { to: '/settings',    label: 'Ajustes',       Icon: Settings        },
@@ -43,9 +44,7 @@ export default function Sidebar({ isOpen, onClose }) {
         {/* Logo */}
         <div className="px-5 py-5 border-b border-gray-100 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-brand-gradient flex items-center justify-center shadow-soft">
-              <Scissors size={15} className="text-white" />
-            </div>
+            <img src="/logonailcontrol.png" alt="NailControl" className="w-10 h-10 object-contain" />
             <div>
               <h1 className="text-sm font-bold text-gray-900 leading-tight">NailControl</h1>
               <p className="text-[10px] text-gray-400 leading-tight font-medium tracking-wide">PRO</p>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Menu, Scissors } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar.jsx';
 
@@ -21,9 +21,7 @@ export default function Layout() {
             <Menu size={20} />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-brand-gradient flex items-center justify-center">
-              <Scissors size={12} className="text-white" />
-            </div>
+            <img src="/logonailcontrol.png" alt="NailControl" className="w-7 h-7 object-contain" />
             <span className="text-sm font-semibold text-gray-800">NailControl Pro</span>
           </div>
           <div className="w-9" />

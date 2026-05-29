@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Clock, Scissors, Pencil } from 'lucide-react';
+import { Plus, Trash2, Clock, Pencil } from 'lucide-react';
 import { api } from '../lib/api.js';
 import Button from '../components/ui/Button.jsx';
 import Modal from '../components/ui/Modal.jsx';
@@ -7,16 +7,6 @@ import Input from '../components/ui/Input.jsx';
 
 const EMPTY_FORM = { name: '', basePrice: '', durationMinutes: '' };
 
-const PALETTE = [
-  'from-blush-100 to-petal-200',
-  'from-violet-100 to-purple-200',
-  'from-sky-100 to-blue-200',
-  'from-amber-100 to-yellow-200',
-  'from-emerald-100 to-green-200',
-  'from-rose-100 to-pink-200',
-  'from-indigo-100 to-violet-200',
-  'from-teal-100 to-cyan-200',
-];
 
 const formatCurrency = (v) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
@@ -79,9 +69,7 @@ export default function Services() {
               key={s.id}
               className="bg-white rounded-2xl border border-gray-100 shadow-card p-5 hover:shadow-card-hover hover:-translate-y-0.5 transition-all group"
             >
-              <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${PALETTE[i % PALETTE.length]} flex items-center justify-center mb-4`}>
-                <Scissors size={18} className="text-blush-600" strokeWidth={1.75} />
-              </div>
+              <img src="/logonailcontrol.png" alt="" className="w-11 h-11 object-contain mb-4" />
               <h3 className="font-semibold text-gray-800 text-sm leading-snug mb-3">{s.name}</h3>
               <div className="space-y-1.5 mb-4">
                 <div className="flex items-center justify-between">
