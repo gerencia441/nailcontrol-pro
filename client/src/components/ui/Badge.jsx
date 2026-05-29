@@ -1,7 +1,7 @@
 const statusStyles = {
   PENDING:   'bg-amber-100 text-amber-700',
   COMPLETED: 'bg-emerald-100 text-emerald-700',
-  CANCELLED: 'bg-gray-100 text-gray-500',
+  CANCELLED: 'bg-red-100 text-red-600',
 };
 
 const paymentStyles = {

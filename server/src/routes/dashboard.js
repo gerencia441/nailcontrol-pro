@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
           where: { date: { gte: today, lt: tomorrow } },
         }),
         req.prisma.appointment.count({
-          where: { status: 'PENDING' },
+          where: { status: 'PENDING', date: { gte: today, lt: tomorrow } },
         }),
         req.prisma.finance.aggregate({
           where: {

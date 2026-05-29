@@ -110,6 +110,12 @@ export default function Services() {
             </div>
           ))}
 
+          {services.length === 0 && (
+            <p className="col-span-full text-center text-sm text-gray-400 py-8">
+              No hay servicios registrados
+            </p>
+          )}
+
           {/* Add card */}
           <button
             onClick={openCreate}
