@@ -403,22 +403,10 @@ export default function Appointments() {
                       {appt.status === 'PENDING' && (
                         <>
                           <button
-                            onClick={() => openEdit(appt)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-blush-50 hover:text-blush-600 transition-colors"
-                          >
-                            <Pencil size={13} />
-                          </button>
-                          <button
                             onClick={() => openComplete(appt)}
                             className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
                           >
                             <CheckCircle size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleCancel(appt.id)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                          >
-                            <XCircle size={13} />
                           </button>
                         </>
                       )}
