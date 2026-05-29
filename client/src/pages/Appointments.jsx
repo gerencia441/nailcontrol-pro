@@ -528,7 +528,11 @@ export default function Appointments() {
                 <Pencil size={14} /> Editar cita
               </Button>
               <div className="flex gap-2">
-                <Button type="button" variant="ghost" onClick={() => setCompleteModal(false)}>Cancelar</Button>
+                <Button type="button" variant="ghost" onClick={async () => {
+                  if (!confirm('¿Cancelar esta cita?')) return;
+                  try { await api.updateAppointment(completeTarget.id, { status: 'CANCELLED' }); setCompleteModal(false); loadAppointments(); }
+                  catch (err) { alert(err.message); }
+                }}>Cancelar cita</Button>
                 <Button type="submit" disabled={completing}>{completing ? 'Procesando...' : 'Cobrar y Cerrar'}</Button>
               </div>
             </div>
