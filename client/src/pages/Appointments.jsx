@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, CheckCircle, XCircle, Clock, UserCheck, Trash2, Pencil, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, Clock, UserCheck, Trash2, Pencil, ChevronLeft, ChevronRight, Calendar, MessageCircle } from 'lucide-react';
 import { api } from '../lib/api.js';
 import Button from '../components/ui/Button.jsx';
 import Modal from '../components/ui/Modal.jsx';
@@ -11,6 +11,28 @@ import { resolveManicuristColor, apptCardStyle } from '../lib/manicuristColors.j
 
 const formatCurrency = (v) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0);
+
+function buildWhatsAppLink(appt, services) {
+  const digits = (appt.client?.phone || '').replace(/\D/g, '');
+  const phone = digits.startsWith('57') ? digits : `57${digits}`;
+  const dia = new Date(appt.date).toLocaleDateString('es-CO', {
+    timeZone: 'America/Bogota', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+  const hora = new Date(appt.date).toLocaleTimeString('es-CO', {
+    timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true,
+  });
+  const svcs = services.map((s) => s.name).join(', ');
+  const dynamic =
+    `Nombre: ${appt.client?.name}\n` +
+    `Día: ${dia}\n` +
+    `Hora: ${hora}\n` +
+    `Servicio: ${svcs}\n` +
+    `Manicurista: ${appt.manicurist?.name}\n\n`;
+  const staticEncoded =
+    'Te%20estoy%20confirmando%20tu%20cita%20con%20estos%20datos%0A' +
+    'Si%20deseas%20ajustar%20algo%2C%20estoy%20encantada%20de%20ayudarte';
+  return `https://wa.me/${phone}?text=${encodeURIComponent(dynamic)}${staticEncoded}`;
+}
 
 const formatDateTime = (d) => {
   const date = new Date(d).toLocaleDateString('es-CO', {
@@ -513,6 +535,18 @@ export default function Appointments() {
                 Total base: {formatCurrency(getServicesTotal(getApptServices(completeTarget)))}
               </p>
             </div>
+            {completeTarget.client?.phone && (
+              <a
+                href={buildWhatsAppLink(completeTarget, getApptServices(completeTarget))}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+              >
+                <MessageCircle size={15} />
+                Confirmar cita por WhatsApp
+              </a>
+            )}
+
             <Input label="Valor Real Pagado (COP) *" id="final-price" type="number" min="0" step="1000" required
               value={completeForm.finalPricePaid}
               onChange={(e) => setCompleteForm({ ...completeForm, finalPricePaid: e.target.value })} />
