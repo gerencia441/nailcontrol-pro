@@ -12,13 +12,13 @@ const formatCurrency = (v) =>
 
 const formatDate = (d) =>
   new Date(d).toLocaleDateString('es-CO', {
-    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    timeZone: 'America/Bogota', day: '2-digit', month: '2-digit', year: 'numeric',
   });
 
 function toLocalDateInput(date) {
-  const d = new Date(date);
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(date));
 }
 
 function toIsoWeekInput(date) {

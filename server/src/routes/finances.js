@@ -237,7 +237,7 @@ router.post('/', async (req, res) => {
         type,
         amount: parseFloat(amount),
         description,
-        date: new Date(date),
+        date: startOfBogotaDay(date),
         paymentMethod: paymentMethod || null,
       },
     });
