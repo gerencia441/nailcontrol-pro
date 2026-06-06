@@ -113,6 +113,7 @@ router.patch('/:id/complete', async (req, res) => {
         where: { id: req.params.id },
         include: {
           client: true,
+          manicurist: true,
           services: { include: { service: true } },
         },
       });
@@ -148,6 +149,7 @@ router.patch('/:id/complete', async (req, res) => {
           // los servicios del día.
           date: appt.date,
           paymentMethod,
+          manicuristColor: appt.manicurist?.color || null,
         },
       });
 

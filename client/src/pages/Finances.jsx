@@ -158,7 +158,14 @@ function ReportView({ report }) {
               {report.financeEntries.map((f) => (
                 <tr key={f.id} className="border-b border-gray-50 last:border-0">
                   <td className="py-3 text-gray-400 text-xs">{formatDate(f.date)}</td>
-                  <td className="py-3 text-gray-700">{f.description}</td>
+                  <td className="py-3 text-gray-700">
+                    <div className="flex items-center gap-2">
+                      {f.manicuristColor && (
+                        <span className="w-2 h-2 rounded-full flex-shrink-0 inline-block" style={{ backgroundColor: f.manicuristColor }} />
+                      )}
+                      {f.description}
+                    </div>
+                  </td>
                   <td className="py-3 text-gray-500">{f.type === 'INCOME' ? 'Ingreso' : 'Egreso'}</td>
                   <td className={`py-3 text-right font-semibold ${f.type === 'INCOME' ? 'text-emerald-600' : 'text-blush-500'}`}>
                     {f.type === 'INCOME' ? '+' : '-'}{formatCurrency(f.amount)}
@@ -302,7 +309,14 @@ export default function Finances() {
                   {finances.map((f) => (
                     <tr key={f.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-3 text-gray-400 text-xs">{formatDate(f.date)}</td>
-                      <td className="px-5 py-3 text-gray-700 max-w-xs truncate">{f.description}</td>
+                      <td className="px-5 py-3 text-gray-700 max-w-xs truncate">
+                        <div className="flex items-center gap-2">
+                          {f.manicuristColor && (
+                            <span className="w-2 h-2 rounded-full flex-shrink-0 inline-block" style={{ backgroundColor: f.manicuristColor }} />
+                          )}
+                          {f.description}
+                        </div>
+                      </td>
                       <td className="px-5 py-3">
                         {f.type === 'INCOME' ? (
                           <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-semibold">
