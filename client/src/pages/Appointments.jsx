@@ -165,6 +165,8 @@ export default function Appointments() {
   const [apptForm,   setApptForm]   = useState(EMPTY_APPT);
   const [editId,     setEditId]     = useState(null);
   const [saving,     setSaving]     = useState(false);
+  const [clientSearch,       setClientSearch]       = useState('');
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
 
   const [completeModal,  setCompleteModal]  = useState(false);
   const [completeTarget, setCompleteTarget] = useState(null);
@@ -209,7 +211,7 @@ export default function Appointments() {
     setCompleteModal(true);
   };
 
-  const openCreate = () => { setEditId(null); setApptForm(EMPTY_APPT); setApptModal(true); };
+  const openCreate = () => { setEditId(null); setApptForm(EMPTY_APPT); setClientSearch(''); setShowClientDropdown(false); setApptModal(true); };
   const openEdit   = (appt) => {
     setEditId(appt.id);
     setApptForm({
@@ -219,6 +221,8 @@ export default function Appointments() {
       date: toLocalDateTimeInput(appt.date),
       isNewClient: false, newClientName: '', newClientPhone: '',
     });
+    setClientSearch(appt.client?.name || '');
+    setShowClientDropdown(false);
     setApptModal(true);
   };
 
@@ -470,11 +474,50 @@ export default function Appointments() {
                 onChange={(e) => setApptForm({ ...apptForm, newClientPhone: e.target.value })} />
             </div>
           ) : (
-            <Select label="Clienta *" id="appt-client" value={apptForm.clientId} required={!apptForm.isNewClient} disabled={Boolean(editId)}
-              onChange={(e) => setApptForm({ ...apptForm, clientId: e.target.value })}>
-              <option value="">Seleccionar clienta...</option>
-              {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
+            <div className="relative flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide" htmlFor="client-search">
+                Clienta *
+              </label>
+              <input
+                id="client-search"
+                type="text"
+                autoComplete="off"
+                disabled={Boolean(editId)}
+                placeholder="Buscar clienta..."
+                value={clientSearch}
+                onChange={(e) => {
+                  setClientSearch(e.target.value);
+                  setApptForm({ ...apptForm, clientId: '' });
+                  setShowClientDropdown(true);
+                }}
+                onFocus={() => setShowClientDropdown(true)}
+                onBlur={() => setTimeout(() => setShowClientDropdown(false), 150)}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blush-300 focus:border-blush-400 disabled:bg-gray-50 disabled:text-gray-500"
+              />
+              {showClientDropdown && (
+                <div className="absolute z-50 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                  {clients
+                    .filter((c) => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
+                    .map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onMouseDown={() => {
+                          setApptForm({ ...apptForm, clientId: c.id });
+                          setClientSearch(c.name);
+                          setShowClientDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-2.5 text-sm text-gray-700 hover:bg-blush-50 hover:text-blush-700 transition-colors first:rounded-t-xl last:rounded-b-xl"
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  {clients.filter((c) => c.name.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 && (
+                    <p className="px-3 py-2.5 text-sm text-gray-400">Sin resultados</p>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           <div className="flex flex-col gap-1.5">
