@@ -64,11 +64,84 @@ function SummaryCard({ title, value, tone = 'neutral' }) {
   );
 }
 
-function ReportView({ report }) {
+function ReportView({ report, isAdmin }) {
   if (!report) return null;
+
+  const myData = !isAdmin && report.manicuristLiquidation?.[0];
+
+  if (!isAdmin) {
+    // Vista manicurista: solo sus ingresos y su comisión
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <SummaryCard title="Mis Ingresos"  value={formatCurrency(report.totalIncome)} tone="income" />
+          <SummaryCard title="Mi Comisión"   value={formatCurrency(report.totalCommissions)} tone="commission" />
+        </div>
+
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+          <h3 className="section-title mb-3">Mis Citas del Periodo</h3>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            {[
+              { label: 'Pendientes',  value: report.appointmentStatus?.PENDING   || 0, cls: 'text-amber-500'   },
+              { label: 'Completadas', value: report.appointmentStatus?.COMPLETED  || 0, cls: 'text-emerald-600' },
+              { label: 'Canceladas',  value: report.appointmentStatus?.CANCELLED  || 0, cls: 'text-blush-500'   },
+            ].map(({ label, value, cls }) => (
+              <div key={label}>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
+                <p className={`text-2xl font-bold ${cls}`}>{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {myData && (
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+            <h3 className="section-title mb-3">Mi Liquidación</h3>
+            <div className="space-y-1 text-sm max-w-sm">
+              <div className="flex justify-between py-1.5">
+                <span className="text-gray-500">Total cobrado ({myData.appointmentCount} citas)</span>
+                <span className="font-semibold text-gray-700">{formatCurrency(myData.totalBilled)}</span>
+              </div>
+              <div className="flex justify-between py-1.5">
+                <span className="text-gray-500">Mi comisión ({myData.commissionPercentage}%)</span>
+                <span className="font-bold text-mauve-600">{formatCurrency(myData.commissionEarned)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card overflow-x-auto">
+          <h3 className="section-title mb-3">Mis Transacciones</h3>
+          {report.financeEntries.length === 0 ? (
+            <p className="text-sm text-gray-400">No hay ingresos en este periodo.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left py-2 table-header">Fecha</th>
+                  <th className="text-left py-2 table-header">Descripción</th>
+                  <th className="text-right py-2 table-header">Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.financeEntries.map((f) => (
+                  <tr key={f.id} className="border-b border-gray-50 last:border-0">
+                    <td className="py-3 text-gray-400 text-xs">{formatDate(f.date)}</td>
+                    <td className="py-3 text-gray-700">{f.description}</td>
+                    <td className="py-3 text-right font-semibold text-emerald-600">+{formatCurrency(f.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Vista administrador: reporte completo
   return (
     <div className="space-y-4">
-      {/* KPI row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
         <SummaryCard title="Total Ingresos"   value={formatCurrency(report.totalIncome)}           tone="income"     />
         <SummaryCard title="Total Egresos"    value={formatCurrency(report.totalExpenses)}          tone="expense"    />
@@ -78,7 +151,6 @@ function ReportView({ report }) {
           tone={report.netAfterCommissions >= 0 ? 'neutral' : 'expense'} />
       </div>
 
-      {/* Account breakdown */}
       <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
         <h3 className="section-title mb-4">Desglose de Cuentas</h3>
         <div className="space-y-1 text-sm max-w-md">
@@ -96,7 +168,6 @@ function ReportView({ report }) {
             <span className="text-gray-700 font-medium">= Neto bruto</span>
             <span className="font-bold text-gray-800">{formatCurrency(report.net)}</span>
           </div>
-
           {report.manicuristLiquidation.length > 0 && (
             <>
               <div className="flex justify-between pt-3 pb-1">
@@ -111,7 +182,6 @@ function ReportView({ report }) {
               ))}
             </>
           )}
-
           <div className="flex justify-between py-2.5 border-t-2 border-gray-200 mt-2">
             <span className="font-bold text-gray-900">= Saldo del Salón</span>
             <span className={`text-lg font-bold ${report.netAfterCommissions >= 0 ? 'text-gray-900' : 'text-blush-600'}`}>
@@ -137,7 +207,6 @@ function ReportView({ report }) {
             )}
           </div>
         </div>
-
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
           <h3 className="section-title mb-3">Citas del Periodo</h3>
           <div className="grid grid-cols-3 gap-3 text-center">
@@ -420,7 +489,7 @@ export default function Finances() {
               {reportLoading ? 'Generando...' : 'Generar Cierre'}
             </Button>
           </div>
-          <ReportView report={report} />
+          <ReportView report={report} isAdmin={isAdmin} />
         </div>
       )}
 
@@ -444,7 +513,7 @@ export default function Finances() {
           {weekReport && (
             <p className="text-sm text-gray-400">Semana: {weekReport.dateFrom} a {weekReport.dateTo}</p>
           )}
-          <ReportView report={weekReport} />
+          <ReportView report={weekReport} isAdmin={isAdmin} />
         </div>
       )}
 
@@ -523,7 +592,7 @@ export default function Finances() {
           {summary && (
             <p className="text-sm text-gray-400">Periodo: {summary.dateFrom} a {summary.dateTo}</p>
           )}
-          <ReportView report={summary} />
+          <ReportView report={summary} isAdmin={isAdmin} />
         </div>
       )}
 
