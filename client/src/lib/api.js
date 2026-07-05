@@ -79,6 +79,12 @@ export const api = {
   // Dashboard
   getDashboard: () => request('GET', '/dashboard'),
 
+  // Users (admin only)
+  getUsers: () => request('GET', '/users'),
+  createUser: (data) => request('POST', '/users', data),
+  updateUser: (id, data) => request('PUT', `/users/${id}`, data),
+  deleteUser: (id) => request('DELETE', `/users/${id}`),
+
   // Google Calendar integration
   getGoogleConnectUrl: () => request('GET', '/integrations/google/connect'),
   getGoogleStatus: () => request('GET', '/integrations/google/status'),

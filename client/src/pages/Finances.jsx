@@ -6,6 +6,7 @@ import Modal from '../components/ui/Modal.jsx';
 import Input from '../components/ui/Input.jsx';
 import Select from '../components/ui/Select.jsx';
 import { PaymentBadge } from '../components/ui/Badge.jsx';
+import { useAuth } from '../lib/AuthContext.jsx';
 
 const formatCurrency = (v) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0);
@@ -234,6 +235,7 @@ function ReportView({ report }) {
 }
 
 export default function Finances() {
+  const { isAdmin } = useAuth();
   const [tab,        setTab]        = useState('entries');
   const [finances,   setFinances]   = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -316,7 +318,7 @@ export default function Finances() {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="page-title">Finanzas</h1>
-        {tab === 'entries' && (
+        {isAdmin && tab === 'entries' && (
           <Button onClick={() => setModalOpen(true)} className="self-start sm:self-auto">
             <Plus size={16} strokeWidth={2.5} /> Nuevo Registro
           </Button>
@@ -385,11 +387,13 @@ export default function Finances() {
                       <td className={`px-5 py-3 text-right font-semibold ${f.type === 'INCOME' ? 'text-emerald-600' : 'text-blush-500'}`}>
                         {f.type === 'INCOME' ? '+' : '-'}{formatCurrency(f.amount)}
                       </td>
-                      <td className="px-5 py-3">
-                        <Button variant="danger" size="sm" onClick={() => handleDelete(f.id)}>
-                          <Trash2 size={13} />
-                        </Button>
-                      </td>
+                      {isAdmin && (
+                        <td className="px-5 py-3">
+                          <Button variant="danger" size="sm" onClick={() => handleDelete(f.id)}>
+                            <Trash2 size={13} />
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

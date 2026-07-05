@@ -8,6 +8,7 @@ import Select from '../components/ui/Select.jsx';
 import DateTimePicker from '../components/ui/DateTimePicker.jsx';
 import { StatusBadge, PaymentBadge } from '../components/ui/Badge.jsx';
 import { resolveManicuristColor, apptCardStyle } from '../lib/manicuristColors.js';
+import { useAuth } from '../lib/AuthContext.jsx';
 
 const formatCurrency = (v) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0);
@@ -325,7 +326,7 @@ function HourlyCalendar({ appointments, selectedDate, onDateChange, getApptServi
                   }}
                 >
                   <div className="px-1.5 py-1 h-full overflow-hidden">
-                    <p className="text-[11px] font-bold leading-tight truncate" style={{ color }}>
+                    <p className="text-[11px] font-bold leading-tight truncate text-gray-700">
                       {appt.client?.name}
                     </p>
                     {!isShort && (
@@ -335,7 +336,7 @@ function HourlyCalendar({ appointments, selectedDate, onDateChange, getApptServi
                       </p>
                     )}
                     {!isShort && appt.confirmed && appt.status === 'PENDING' && (
-                      <p className="text-[9px] font-semibold mt-0.5 flex items-center gap-0.5" style={{ color }}>
+                      <p className="text-[9px] font-semibold mt-0.5 flex items-center gap-0.5 text-gray-600">
                         <BadgeCheck size={9} /> Confirmada
                       </p>
                     )}
@@ -359,6 +360,7 @@ function HourlyCalendar({ appointments, selectedDate, onDateChange, getApptServi
 // ────────────────────────────────────────────────────────────────────────────
 
 export default function Appointments() {
+  const { isAdmin } = useAuth();
   const [appointments, setAppointments] = useState([]);
   const [pending,      setPending]      = useState([]);
   const [clients,      setClients]      = useState([]);
@@ -661,18 +663,24 @@ export default function Appointments() {
                     <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                       {appt.status === 'PENDING' && (
                         <>
-                          {/* Confirmar cita */}
-                          <button
-                            onClick={(e) => toggleConfirmed(appt, e)}
-                            title={appt.confirmed ? 'Cita confirmada' : 'Confirmar cita'}
-                            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
-                              appt.confirmed
-                                ? 'text-teal-500 bg-teal-50'
-                                : 'text-gray-300 hover:bg-teal-50 hover:text-teal-400'
-                            }`}
-                          >
-                            <BadgeCheck size={15} />
-                          </button>
+                          {/* Confirmar cita: admin puede togglear, manicurista solo ve */}
+                          {isAdmin ? (
+                            <button
+                              onClick={(e) => toggleConfirmed(appt, e)}
+                              title={appt.confirmed ? 'Cita confirmada' : 'Confirmar cita'}
+                              className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                                appt.confirmed
+                                  ? 'text-teal-500 bg-teal-50'
+                                  : 'text-gray-300 hover:bg-teal-50 hover:text-teal-400'
+                              }`}
+                            >
+                              <BadgeCheck size={15} />
+                            </button>
+                          ) : appt.confirmed ? (
+                            <span className="w-7 h-7 flex items-center justify-center text-teal-400" title="Confirmada">
+                              <BadgeCheck size={15} />
+                            </span>
+                          ) : null}
                           {/* Completar cita */}
                           <button
                             onClick={() => openComplete(appt)}
@@ -683,7 +691,7 @@ export default function Appointments() {
                           </button>
                         </>
                       )}
-                      {appt.status !== 'PENDING' && (
+                      {appt.status !== 'PENDING' && isAdmin && (
                         <button
                           onClick={() => handleDeleteAppt(appt.id)}
                           className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
@@ -832,7 +840,7 @@ export default function Appointments() {
                 Total base: {formatCurrency(getServicesTotal(getApptServices(completeTarget)))}
               </p>
             </div>
-            {completeTarget.client?.phone && (
+            {isAdmin && completeTarget.client?.phone && (
               <a
                 href={buildWhatsAppLink(completeTarget, getApptServices(completeTarget))}
                 target="_blank"

@@ -87,6 +87,7 @@ router.put('/:id', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
   try {
     await req.prisma.$transaction([
       // AppointmentService se borra en cascada al eliminar cada Appointment

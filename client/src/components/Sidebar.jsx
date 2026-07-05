@@ -8,23 +8,26 @@ import {
   LogOut,
   X,
   Settings,
+  ShieldCheck,
 } from 'lucide-react';
 
 const NailIcon = () => <img src="/logonailcontrol.png" alt="" className="w-5 h-5 object-contain" />;
 import { useAuth } from '../lib/AuthContext';
 
-const links = [
-  { to: '/dashboard',   label: 'Dashboard',    Icon: LayoutDashboard },
-  { to: '/appointments',label: 'Citas',         Icon: CalendarDays    },
-  { to: '/clients',     label: 'Clientas',      Icon: Users           },
-  { to: '/services',    label: 'Servicios',     Icon: NailIcon        },
-  { to: '/manicurists', label: 'Manicuristas',  Icon: UserCheck       },
-  { to: '/finances',    label: 'Finanzas',      Icon: DollarSign      },
-  { to: '/settings',    label: 'Ajustes',       Icon: Settings        },
+const ALL_LINKS = [
+  { to: '/dashboard',   label: 'Dashboard',    Icon: LayoutDashboard, adminOnly: false },
+  { to: '/appointments',label: 'Citas',         Icon: CalendarDays,    adminOnly: false },
+  { to: '/clients',     label: 'Clientas',      Icon: Users,           adminOnly: false },
+  { to: '/services',    label: 'Servicios',     Icon: NailIcon,        adminOnly: true  },
+  { to: '/manicurists', label: 'Manicuristas',  Icon: UserCheck,       adminOnly: true  },
+  { to: '/finances',    label: 'Finanzas',      Icon: DollarSign,      adminOnly: false },
+  { to: '/settings',    label: 'Ajustes',       Icon: Settings,        adminOnly: true  },
+  { to: '/users',       label: 'Usuarios',      Icon: ShieldCheck,     adminOnly: true  },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
+  const links = ALL_LINKS.filter(l => !l.adminOnly || isAdmin);
 
   return (
     <>
@@ -82,10 +85,13 @@ export default function Sidebar({ isOpen, onClose }) {
             <div className="flex items-center gap-2.5 px-3 py-2 mb-1">
               <div className="w-7 h-7 rounded-full bg-brand-gradient flex items-center justify-center flex-shrink-0">
                 <span className="text-[10px] font-bold text-white">
-                  {user.name ? user.name.split(' ').map(n => n[0]).join('').slice(0,2) : 'U'}
+                  {(user.username || 'U').slice(0, 2).toUpperCase()}
                 </span>
               </div>
-              <span className="text-xs font-medium text-gray-700 truncate">{user.name || user.email}</span>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-gray-700 truncate">{user.username}</p>
+                <p className="text-[10px] text-gray-400">{user.role === 'ADMIN' ? 'Administrador' : 'Manicurista'}</p>
+              </div>
             </div>
           )}
           <button

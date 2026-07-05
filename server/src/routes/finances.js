@@ -78,23 +78,29 @@ function getRangeFromQuery(query) {
   return { period, start: startOfBogotaDay(dateFrom), end: endExclusiveOfBogotaDay(dateTo) };
 }
 
-async function buildFinancialReport(prisma, { period, start, end }) {
+async function buildFinancialReport(prisma, { period, start, end }, manicuristId = null) {
+  const apptWhere = { date: { gte: start, lt: end } };
+  const financeWhere = { date: { gte: start, lt: end } };
+
+  if (manicuristId) {
+    apptWhere.manicuristId = manicuristId;
+    financeWhere.manicuristId = manicuristId;
+    financeWhere.type = 'INCOME';
+  }
+
   const [finances, appointments, statusCounts] = await Promise.all([
     prisma.finance.findMany({
-      where: { date: { gte: start, lt: end } },
+      where: financeWhere,
       orderBy: { date: 'asc' },
     }),
     prisma.appointment.findMany({
-      where: {
-        date: { gte: start, lt: end },
-        status: 'COMPLETED',
-      },
+      where: { ...apptWhere, status: 'COMPLETED' },
       include: { manicurist: true },
       orderBy: { date: 'asc' },
     }),
     prisma.appointment.groupBy({
       by: ['status'],
-      where: { date: { gte: start, lt: end } },
+      where: apptWhere,
       _count: { _all: true },
     }),
   ]);
@@ -163,13 +169,12 @@ router.get('/day-close', async (req, res) => {
   try {
     const { date } = req.query;
     if (!date) return res.status(400).json({ error: 'date query param required' });
-
+    const mId = req.user.role === 'MANICURIST' ? (req.user.manicuristId || null) : null;
     const report = await buildFinancialReport(req.prisma, {
       period: 'day',
       start: startOfBogotaDay(date),
       end: endExclusiveOfBogotaDay(date),
-    });
-
+    }, mId);
     res.json({ date, ...report });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -180,13 +185,9 @@ router.get('/week-close', async (req, res) => {
   try {
     const { date } = req.query;
     if (!date) return res.status(400).json({ error: 'date query param required' });
-
+    const mId = req.user.role === 'MANICURIST' ? (req.user.manicuristId || null) : null;
     const range = getBogotaWeekRange(date);
-    const report = await buildFinancialReport(req.prisma, {
-      period: 'week',
-      ...range,
-    });
-
+    const report = await buildFinancialReport(req.prisma, { period: 'week', ...range }, mId);
     res.json(report);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -195,8 +196,9 @@ router.get('/week-close', async (req, res) => {
 
 router.get('/summary', async (req, res) => {
   try {
+    const mId = req.user.role === 'MANICURIST' ? (req.user.manicuristId || null) : null;
     const range = getRangeFromQuery(req.query);
-    const report = await buildFinancialReport(req.prisma, range);
+    const report = await buildFinancialReport(req.prisma, range, mId);
     res.json(report);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -208,7 +210,14 @@ router.get('/', async (req, res) => {
     const { type, dateFrom, dateTo } = req.query;
     const where = {};
 
-    if (type) where.type = type;
+    if (req.user.role === 'MANICURIST') {
+      if (!req.user.manicuristId) return res.json([]);
+      where.manicuristId = req.user.manicuristId;
+      where.type = 'INCOME';
+    } else {
+      if (type) where.type = type;
+    }
+
     if (dateFrom || dateTo) {
       where.date = {};
       if (dateFrom) where.date.gte = new Date(dateFrom);
@@ -230,6 +239,7 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
   try {
     const { type, amount, description, date, paymentMethod } = req.body;
     const finance = await req.prisma.finance.create({
@@ -248,6 +258,7 @@ router.post('/', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
   try {
     await req.prisma.finance.delete({ where: { id: req.params.id } });
     res.status(204).end();

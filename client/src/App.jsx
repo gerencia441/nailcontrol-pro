@@ -7,12 +7,20 @@ import Manicurists from './pages/Manicurists.jsx';
 import Appointments from './pages/Appointments.jsx';
 import Finances from './pages/Finances.jsx';
 import Settings from './pages/Settings.jsx';
+import Users from './pages/Users.jsx';
 import Login from './pages/Login.jsx';
 import { useAuth } from './lib/AuthContext.jsx';
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  return children;
+};
+
+const AdminRoute = ({ children }) => {
+  const { user, isAdmin } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isAdmin) return <Navigate to="/dashboard" replace />;
   return children;
 };
 
@@ -31,11 +39,12 @@ export default function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="clients" element={<Clients />} />
-        <Route path="services" element={<Services />} />
-        <Route path="manicurists" element={<Manicurists />} />
+        <Route path="services" element={<AdminRoute><Services /></AdminRoute>} />
+        <Route path="manicurists" element={<AdminRoute><Manicurists /></AdminRoute>} />
         <Route path="appointments" element={<Appointments />} />
         <Route path="finances" element={<Finances />} />
-        <Route path="settings" element={<Settings />} />
+        <Route path="settings" element={<AdminRoute><Settings /></AdminRoute>} />
+        <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
       </Route>
     </Routes>
   );

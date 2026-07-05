@@ -68,6 +68,7 @@ model Finance {
   date            DateTime
   paymentMethod   PaymentMethod?
   manicuristColor String?
+  manicuristId    String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 }
@@ -83,9 +84,11 @@ model AppointmentService {
 }
 
 model User {
-  id                 String  @id
-  username           String  @unique
+  id                 String    @id @default(cuid())
+  username           String    @unique
   password           String
+  role               UserRole  @default(MANICURIST)
+  manicuristId       String?   @unique
   googleRefreshToken String?
   googleCalendarId   String?
 }
@@ -105,4 +108,9 @@ enum PaymentMethod {
 enum FinanceType {
   INCOME
   EXPENSE
+}
+
+enum UserRole {
+  ADMIN
+  MANICURIST
 }

@@ -40,8 +40,10 @@ export const AuthProvider = ({ children }) => {
     return <div>Loading...</div>; // Or a nice spinner
   }
 
+  const isAdmin = user?.role === 'ADMIN';
+
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

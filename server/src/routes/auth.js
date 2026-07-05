@@ -26,11 +26,13 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, {
-      expiresIn: '7d' // Token valid for 7 days
-    });
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role, manicuristId: user.manicuristId ?? null },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
-    res.json({ token, user: { id: user.id, username: user.username } });
+    res.json({ token, user: { id: user.id, username: user.username, role: user.role, manicuristId: user.manicuristId ?? null } });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });

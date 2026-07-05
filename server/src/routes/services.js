@@ -25,6 +25,7 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
   try {
     const { name, basePrice, durationMinutes } = req.body;
     const service = await req.prisma.service.create({
@@ -41,6 +42,7 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
   try {
     const { name, basePrice, durationMinutes } = req.body;
     const service = await req.prisma.service.update({
@@ -58,6 +60,7 @@ router.put('/:id', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
   try {
     await req.prisma.service.delete({ where: { id: req.params.id } });
     res.status(204).end();

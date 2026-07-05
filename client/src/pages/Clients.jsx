@@ -4,6 +4,7 @@ import { api } from '../lib/api.js';
 import Button from '../components/ui/Button.jsx';
 import Modal from '../components/ui/Modal.jsx';
 import Input from '../components/ui/Input.jsx';
+import { useAuth } from '../lib/AuthContext.jsx';
 
 const EMPTY_FORM = { name: '', phone: '', birthDate: '', tags: '', technicalNotes: '' };
 
@@ -18,6 +19,7 @@ function TagChip({ tag }) {
 }
 
 export default function Clients() {
+  const { isAdmin } = useAuth();
   const [clients,   setClients]   = useState([]);
   const [search,    setSearch]    = useState('');
   const [loading,   setLoading]   = useState(true);
@@ -99,15 +101,15 @@ export default function Clients() {
           <>
             {/* Desktop table — hidden on mobile */}
             <div className="hidden md:block">
-              <div className="grid grid-cols-[2fr_1fr_2fr_auto] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-100">
+              <div className={`grid gap-4 px-5 py-3 bg-gray-50 border-b border-gray-100 ${isAdmin ? 'grid-cols-[2fr_1fr_2fr_auto]' : 'grid-cols-[2fr_2fr_auto]'}`}>
                 <span className="table-header">Cliente</span>
-                <span className="table-header">Teléfono</span>
+                {isAdmin && <span className="table-header">Teléfono</span>}
                 <span className="table-header">Etiquetas</span>
                 <span className="table-header">Acción</span>
               </div>
               <div className="divide-y divide-gray-50">
                 {clients.map((c) => (
-                  <div key={c.id} className="grid grid-cols-[2fr_1fr_2fr_auto] gap-4 items-center px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+                  <div key={c.id} className={`grid gap-4 items-center px-5 py-3.5 hover:bg-gray-50 transition-colors group ${isAdmin ? 'grid-cols-[2fr_1fr_2fr_auto]' : 'grid-cols-[2fr_2fr_auto]'}`}>
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
@@ -116,10 +118,12 @@ export default function Clients() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Phone size={11} className="text-gray-300" />
-                      <span className="text-sm text-gray-500">{c.phone || '—'}</span>
-                    </div>
+                    {isAdmin && (
+                      <div className="flex items-center gap-1">
+                        <Phone size={11} className="text-gray-300" />
+                        <span className="text-sm text-gray-500">{c.phone || '—'}</span>
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-1">
                       {(c.tags || []).length === 0
                         ? <span className="text-xs text-gray-300">—</span>
@@ -133,12 +137,14 @@ export default function Clients() {
                       >
                         <Pencil size={13} />
                       </button>
-                      <button
-                        onClick={() => handleDelete(c.id)}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDelete(c.id)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -151,10 +157,12 @@ export default function Clients() {
                 <div key={c.id} className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <Phone size={11} className="text-gray-300 flex-shrink-0" />
-                      <span className="text-xs text-gray-400 truncate">{c.phone || '—'}</span>
-                    </div>
+                    {isAdmin && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Phone size={11} className="text-gray-300 flex-shrink-0" />
+                        <span className="text-xs text-gray-400 truncate">{c.phone || '—'}</span>
+                      </div>
+                    )}
                     {(c.tags || []).length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {(c.tags || []).map((tag) => <TagChip key={tag} tag={tag} />)}
@@ -168,12 +176,14 @@ export default function Clients() {
                     >
                       <Pencil size={14} />
                     </button>
-                    <button
-                      onClick={() => handleDelete(c.id)}
-                      className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleDelete(c.id)}
+                        className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -186,8 +196,10 @@ export default function Clients() {
         <form onSubmit={handleSave} className="space-y-4">
           <Input label="Nombre *" id="client-name" value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="Nombre completo" />
-          <Input label="Teléfono" id="client-phone" value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="300 000 0000" />
+          {isAdmin && (
+            <Input label="Teléfono" id="client-phone" value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="300 000 0000" />
+          )}
           <Input label="Fecha de Nacimiento" id="client-birth" type="date" value={form.birthDate}
             onChange={(e) => setForm({ ...form, birthDate: e.target.value })} />
           <Input label="Etiquetas (separadas por coma)" id="client-tags" value={form.tags}

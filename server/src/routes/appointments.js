@@ -150,6 +150,7 @@ router.patch('/:id/complete', async (req, res) => {
           date: appt.date,
           paymentMethod,
           manicuristColor: appt.manicurist?.color || null,
+          manicuristId: appt.manicurist?.id || null,
         },
       });
 
@@ -252,6 +253,7 @@ router.patch('/:id', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
   try {
     // Try to delete linked google event first
     try {

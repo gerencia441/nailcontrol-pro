@@ -11,6 +11,7 @@ const manicuristsRouter = require('./routes/manicurists');
 const appointmentsRouter = require('./routes/appointments');
 const financesRouter = require('./routes/finances');
 const dashboardRouter = require('./routes/dashboard');
+const usersRouter = require('./routes/users');
 const authRouter = require('./routes/auth');
 const googleRouter = require('./routes/integrations/google');
 const requireAuth = require('./middleware/auth');
@@ -50,6 +51,7 @@ app.use('/api/manicurists', requireAuth, manicuristsRouter);
 app.use('/api/appointments', requireAuth, appointmentsRouter);
 app.use('/api/finances', requireAuth, financesRouter);
 app.use('/api/dashboard', requireAuth, dashboardRouter);
+app.use('/api/users', requireAuth, usersRouter);
 
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'API route not found' });

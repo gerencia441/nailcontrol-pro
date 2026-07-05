@@ -12,16 +12,27 @@ router.get('/', async (req, res) => {
     }).format(new Date());
     const { start: today, end: tomorrow } = bogotaDayRangeToUtc(todayBogota);
 
+    const isManicurist = req.user.role === 'MANICURIST';
+    const mId = isManicurist ? req.user.manicuristId : null;
+
+    if (isManicurist && !mId) {
+      return res.json({ appointmentsToday: 0, pendingCount: 0, cashToday: 0, totalIncomeToday: 0 });
+    }
+
+    const apptFilter = mId ? { manicuristId: mId } : {};
+    const financeFilter = mId ? { manicuristId: mId } : {};
+
     const [appointmentsToday, pendingCount, cashToday, totalIncomeToday] =
       await Promise.all([
         req.prisma.appointment.count({
-          where: { date: { gte: today, lt: tomorrow } },
+          where: { ...apptFilter, date: { gte: today, lt: tomorrow } },
         }),
         req.prisma.appointment.count({
-          where: { status: 'PENDING', date: { gte: today, lt: tomorrow } },
+          where: { ...apptFilter, status: 'PENDING', date: { gte: today, lt: tomorrow } },
         }),
         req.prisma.finance.aggregate({
           where: {
+            ...financeFilter,
             date: { gte: today, lt: tomorrow },
             type: 'INCOME',
             paymentMethod: 'CASH',
@@ -30,6 +41,7 @@ router.get('/', async (req, res) => {
         }),
         req.prisma.finance.aggregate({
           where: {
+            ...financeFilter,
             date: { gte: today, lt: tomorrow },
             type: 'INCOME',
           },
