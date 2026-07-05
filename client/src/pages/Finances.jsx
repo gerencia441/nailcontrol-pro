@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, TrendingUp, TrendingDown, BarChart3 } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, TrendingDown, BarChart3, Landmark, Wallet } from 'lucide-react';
 import { api } from '../lib/api.js';
 import Button from '../components/ui/Button.jsx';
 import Modal from '../components/ui/Modal.jsx';
@@ -328,8 +328,12 @@ export default function Finances() {
   const [summary,        setSummary]        = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
 
+  const [balances, setBalances] = useState(null);
+
   const load = () => api.getFinances().then(setFinances).finally(() => setLoading(false));
-  useEffect(() => { load(); }, []);
+  const loadBalances = () => { if (isAdmin) api.getBalances().then(setBalances).catch(() => {}); };
+
+  useEffect(() => { load(); loadBalances(); }, []);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -339,13 +343,14 @@ export default function Finances() {
       setModalOpen(false);
       setForm(EMPTY_FORM);
       load();
+      loadBalances();
     } catch (err) { alert(err.message); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
     if (!confirm('Eliminar este registro?')) return;
-    try { await api.deleteFinance(id); load(); }
+    try { await api.deleteFinance(id); load(); loadBalances(); }
     catch (err) { alert(err.message); }
   };
 
@@ -410,6 +415,35 @@ export default function Finances() {
       </div>
 
       {/* Entries tab */}
+      {tab === 'entries' && isAdmin && balances && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card flex items-center gap-4">
+            <div className="w-10 h-10 rounded-2xl bg-sky-50 flex items-center justify-center flex-shrink-0">
+              <Landmark size={19} className="text-sky-500" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Saldo en Banco</p>
+              <p className={`text-xl font-bold mt-0.5 ${balances.banco >= 0 ? 'text-sky-600' : 'text-blush-600'}`}>
+                {formatCurrency(balances.banco)}
+              </p>
+              <p className="text-[10px] text-gray-300 mt-0.5">Bancolombia + Nequi</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card flex items-center gap-4">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+              <Wallet size={19} className="text-emerald-500" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Saldo en Efectivo</p>
+              <p className={`text-xl font-bold mt-0.5 ${balances.efectivo >= 0 ? 'text-emerald-600' : 'text-blush-600'}`}>
+                {formatCurrency(balances.efectivo)}
+              </p>
+              <p className="text-[10px] text-gray-300 mt-0.5">Efectivo</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {tab === 'entries' && (
         <div className="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden">
           {loading ? (

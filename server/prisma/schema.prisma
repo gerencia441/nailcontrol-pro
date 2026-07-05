@@ -114,3 +114,8 @@ enum UserRole {
   ADMIN
   MANICURIST
 }
+
+model Setting {
+  key   String @id
+  value String @db.Text
+}

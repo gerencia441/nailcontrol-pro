@@ -165,6 +165,42 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
   };
 }
 
+// GET /api/finances/balances — saldo acumulado por medio de pago (solo admin)
+router.get('/balances', async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
+  try {
+    const [settings, finances] = await Promise.all([
+      req.prisma.setting.findMany(),
+      req.prisma.finance.findMany({ select: { type: true, amount: true, paymentMethod: true } }),
+    ]);
+
+    const cfg = {};
+    for (const s of settings) cfg[s.key] = s.value;
+    const baseBanco    = parseFloat(cfg.base_banco    || '0');
+    const baseEfectivo = parseFloat(cfg.base_efectivo || '0');
+
+    let netBanco = 0;
+    let netEfectivo = 0;
+
+    for (const f of finances) {
+      const sign = f.type === 'INCOME' ? 1 : -1;
+      const amt = f.amount * sign;
+      if (f.paymentMethod === 'BANCOLOMBIA' || f.paymentMethod === 'NEQUI') {
+        netBanco += amt;
+      } else if (f.paymentMethod === 'CASH') {
+        netEfectivo += amt;
+      }
+    }
+
+    res.json({
+      banco:    baseBanco    + netBanco,
+      efectivo: baseEfectivo + netEfectivo,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/day-close', async (req, res) => {
   try {
     const { date } = req.query;

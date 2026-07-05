@@ -79,6 +79,13 @@ export const api = {
   // Dashboard
   getDashboard: () => request('GET', '/dashboard'),
 
+  // Settings
+  getSettings: () => request('GET', '/settings'),
+  updateSettings: (data) => request('PUT', '/settings', data),
+
+  // Balances (admin only)
+  getBalances: () => request('GET', '/finances/balances'),
+
   // Users (admin only)
   getUsers: () => request('GET', '/users'),
   createUser: (data) => request('POST', '/users', data),
