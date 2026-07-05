@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Phone, Pencil, Trash2, Tag } from 'lucide-react';
+import { Plus, Search, Phone, Pencil, Trash2, Tag, ClipboardList, UserCheck, Calendar, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { api } from '../lib/api.js';
 import Button from '../components/ui/Button.jsx';
 import Modal from '../components/ui/Modal.jsx';
 import Input from '../components/ui/Input.jsx';
 import { useAuth } from '../lib/AuthContext.jsx';
+import { resolveManicuristColor } from '../lib/manicuristColors.js';
 
 const EMPTY_FORM = { name: '', phone: '', birthDate: '', tags: '', technicalNotes: '' };
 
@@ -18,6 +19,27 @@ function TagChip({ tag }) {
   );
 }
 
+const formatCurrency = (v) =>
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0);
+
+function formatApptDate(d) {
+  return new Date(d).toLocaleDateString('es-CO', {
+    timeZone: 'America/Bogota', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+  });
+}
+function formatApptTime(d) {
+  return new Date(d).toLocaleTimeString('en-US', {
+    timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true,
+  }).toLowerCase();
+}
+
+const STATUS_ICON = {
+  COMPLETED: <CheckCircle size={13} className="text-emerald-500" />,
+  CANCELLED: <XCircle    size={13} className="text-red-400"     />,
+  PENDING:   <Clock      size={13} className="text-amber-400"   />,
+};
+const STATUS_LABEL = { COMPLETED: 'Completada', CANCELLED: 'Cancelada', PENDING: 'Pendiente' };
+
 export default function Clients() {
   const { isAdmin } = useAuth();
   const [clients,   setClients]   = useState([]);
@@ -27,6 +49,10 @@ export default function Clients() {
   const [form,      setForm]      = useState(EMPTY_FORM);
   const [editId,    setEditId]    = useState(null);
   const [saving,    setSaving]    = useState(false);
+
+  const [profileOpen,   setProfileOpen]   = useState(false);
+  const [profileClient, setProfileClient] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   const load = (q) => api.getClients(q).then(setClients).finally(() => setLoading(false));
   useEffect(() => { load(''); }, []);
@@ -64,6 +90,15 @@ export default function Clients() {
     if (!confirm('¿Eliminar esta clienta?')) return;
     try { await api.deleteClient(id); load(search); }
     catch (err) { alert(err.message); }
+  };
+
+  const openProfile = async (id) => {
+    setProfileOpen(true);
+    setProfileClient(null);
+    setProfileLoading(true);
+    try { setProfileClient(await api.getClient(id)); }
+    catch (err) { alert(err.message); setProfileOpen(false); }
+    finally { setProfileLoading(false); }
   };
 
   return (
@@ -132,6 +167,13 @@ export default function Clients() {
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
+                        onClick={() => openProfile(c.id)}
+                        title="Ver historial"
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-mauve-50 hover:text-mauve-600 transition-colors"
+                      >
+                        <ClipboardList size={13} />
+                      </button>
+                      <button
                         onClick={() => openEdit(c)}
                         className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-blush-50 hover:text-blush-600 transition-colors"
                       >
@@ -171,6 +213,13 @@ export default function Clients() {
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
+                      onClick={() => openProfile(c.id)}
+                      title="Ver historial"
+                      className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:bg-mauve-50 hover:text-mauve-600 transition-colors"
+                    >
+                      <ClipboardList size={14} />
+                    </button>
+                    <button
                       onClick={() => openEdit(c)}
                       className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:bg-blush-50 hover:text-blush-600 transition-colors"
                     >
@@ -191,6 +240,97 @@ export default function Clients() {
           </>
         )}
       </div>
+
+      {/* Profile / History Modal */}
+      <Modal isOpen={profileOpen} onClose={() => setProfileOpen(false)} title="Historial de Clienta" maxWidth="max-w-2xl">
+        {profileLoading || !profileClient ? (
+          <div className="py-12 text-center text-gray-400 text-sm">Cargando historial...</div>
+        ) : (
+          <div className="space-y-5">
+            {/* Client header */}
+            <div className="flex flex-col sm:flex-row sm:items-start gap-3 pb-4 border-b border-gray-100">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-bold text-gray-800">{profileClient.name}</h3>
+                {isAdmin && profileClient.phone && (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Phone size={12} className="text-gray-400" />
+                    <span className="text-sm text-gray-500">{profileClient.phone}</span>
+                  </div>
+                )}
+                {(profileClient.tags || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {(profileClient.tags || []).map((t) => <TagChip key={t} tag={t} />)}
+                  </div>
+                )}
+                {profileClient.technicalNotes && (
+                  <p className="text-xs text-gray-400 mt-2 italic">{profileClient.technicalNotes}</p>
+                )}
+              </div>
+              {/* Stats */}
+              <div className="flex gap-3 flex-shrink-0">
+                <div className="text-center px-3 py-2 bg-blush-50 rounded-xl">
+                  <p className="text-lg font-bold text-blush-600">{profileClient.appointments?.length ?? 0}</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Citas</p>
+                </div>
+                <div className="text-center px-3 py-2 bg-mauve-50 rounded-xl">
+                  <p className="text-base font-bold text-mauve-600">
+                    {formatCurrency(
+                      (profileClient.appointments || [])
+                        .filter((a) => a.status === 'COMPLETED')
+                        .reduce((s, a) => s + (a.finalPricePaid || 0), 0)
+                    )}
+                  </p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Total pagado</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Appointment history */}
+            {(profileClient.appointments || []).length === 0 ? (
+              <p className="text-center text-sm text-gray-400 py-6">Esta clienta no tiene citas registradas.</p>
+            ) : (
+              <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                {(profileClient.appointments || []).map((a) => {
+                  const mColor = resolveManicuristColor(a.manicurist?.color);
+                  const svcsLabel = (a.services || []).map((s) => s.name).join(' + ') || (a.service?.name ?? '—');
+                  return (
+                    <div key={a.id} className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors bg-white">
+                      {/* Date/time column */}
+                      <div className="flex-shrink-0 min-w-[90px]">
+                        <p className="text-xs font-semibold text-gray-700">{formatApptDate(a.date)}</p>
+                        <p className="text-xs text-gray-400">{formatApptTime(a.date)}</p>
+                      </div>
+                      {/* Services */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{svcsLabel}</p>
+                        {a.manicurist && (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: mColor }}
+                            />
+                            <span className="text-xs text-gray-500">{a.manicurist.name}</span>
+                          </div>
+                        )}
+                      </div>
+                      {/* Status + price */}
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-1">
+                          {STATUS_ICON[a.status]}
+                          <span className="text-xs text-gray-500">{STATUS_LABEL[a.status]}</span>
+                        </div>
+                        {a.status === 'COMPLETED' && a.finalPricePaid != null && (
+                          <span className="text-xs font-semibold text-emerald-600">{formatCurrency(a.finalPricePaid)}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'Editar Clienta' : 'Nueva Clienta'}>
         <form onSubmit={handleSave} className="space-y-4">
