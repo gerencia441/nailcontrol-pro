@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Plus, CheckCircle, XCircle, Clock, UserCheck, Trash2, Pencil, ChevronLeft, ChevronRight, Calendar, MessageCircle } from 'lucide-react';
 import { api } from '../lib/api.js';
 import Button from '../components/ui/Button.jsx';
@@ -148,6 +148,210 @@ const STATUS_TABS = [
   { key: 'COMPLETED', label: 'Completadas'},
   { key: 'CANCELLED', label: 'Canceladas' },
 ];
+
+// ─── Hourly Calendar (Google-Calendar style) ────────────────────────────────
+
+const HOUR_H     = 64;          // px per hour
+const CAL_START  = 7;           // 7 AM
+const CAL_END    = 22;          // 10 PM
+const CAL_HOURS  = CAL_END - CAL_START;
+
+function getBogotaMinutes() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Bogota', hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(new Date());
+  const h = parseInt(parts.find(p => p.type === 'hour').value);
+  const m = parseInt(parts.find(p => p.type === 'minute').value);
+  return h * 60 + m;
+}
+
+function shiftDate(dateStr, delta) {
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  const nd = new Date(Date.UTC(y, mo - 1, d + delta));
+  const p  = n => String(n).padStart(2, '0');
+  return `${nd.getUTCFullYear()}-${p(nd.getUTCMonth() + 1)}-${p(nd.getUTCDate())}`;
+}
+
+function fmtHourLabel(h) {
+  if (h === 12) return '12 PM';
+  return h < 12 ? `${h} AM` : `${h - 12} PM`;
+}
+
+function layoutDayEvents(appointments, getApptSvcs) {
+  const events = appointments.map(appt => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Bogota', hour: 'numeric', minute: 'numeric', hour12: false,
+    }).formatToParts(new Date(appt.date));
+    const h = parseInt(parts.find(p => p.type === 'hour').value);
+    const m = parseInt(parts.find(p => p.type === 'minute').value);
+    const startMin = h * 60 + m;
+    const svcs     = getApptSvcs(appt);
+    const dur      = svcs.reduce((s, sv) => s + (sv.durationMinutes || 0), 0) || 60;
+    return { appt, startMin, endMin: startMin + dur, col: 0, totalCols: 1 };
+  });
+
+  events.sort((a, b) => a.startMin - b.startMin);
+
+  // Greedy column packing
+  const colEnds = [];
+  events.forEach(ev => {
+    let col = colEnds.findIndex(t => t <= ev.startMin);
+    if (col === -1) col = colEnds.length;
+    colEnds[col] = ev.endMin;
+    ev.col = col;
+  });
+
+  // Total simultaneous columns for each event
+  events.forEach(ev => {
+    const concurrent = events.filter(o => o.startMin < ev.endMin && o.endMin > ev.startMin);
+    ev.totalCols = Math.max(...concurrent.map(e => e.col)) + 1;
+  });
+
+  return events;
+}
+
+function HourlyCalendar({ appointments, selectedDate, onDateChange, getApptServices, resolveColor, onEventClick }) {
+  const [nowMin, setNowMin] = useState(getBogotaMinutes);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    const id = setInterval(() => setNowMin(getBogotaMinutes()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Scroll to current time (or 8 AM) on first render
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const minFromTop = nowMin - CAL_START * 60 - 60; // 1 hr before current
+    scrollRef.current.scrollTop = Math.max(0, (minFromTop / 60) * HOUR_H);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const events  = layoutDayEvents(appointments, getApptServices);
+  const nowTop  = ((nowMin - CAL_START * 60) / 60) * HOUR_H;
+  const showNow = nowMin >= CAL_START * 60 && nowMin <= CAL_END * 60;
+  const isToday = selectedDate === toLocalDateInput(new Date());
+
+  const friendlyDay = new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-CO', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  });
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden flex flex-col">
+      {/* Day navigator */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
+        <button
+          onClick={() => onDateChange(shiftDate(selectedDate, -1))}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <div className="text-center leading-tight">
+          <p className="text-sm font-semibold text-gray-800 capitalize">{friendlyDay}</p>
+          {isToday && <p className="text-xs text-blush-500 font-medium">Hoy</p>}
+        </div>
+        <button
+          onClick={() => onDateChange(shiftDate(selectedDate, 1))}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+
+      {/* Scrollable area */}
+      <div ref={scrollRef} className="overflow-y-auto" style={{ height: 'calc(100vh - 18rem)' }}>
+        <div className="relative flex" style={{ height: `${CAL_HOURS * HOUR_H}px` }}>
+
+          {/* Hour labels */}
+          <div className="w-14 flex-shrink-0 relative select-none">
+            <div className="absolute top-1 right-2 text-[9px] font-medium text-gray-300 uppercase tracking-wider">
+              GMT-5
+            </div>
+            {Array.from({ length: CAL_HOURS }, (_, i) => CAL_START + i).map(h => (
+              <div
+                key={h}
+                className="absolute right-2 text-[10px] text-gray-400 font-medium leading-none whitespace-nowrap"
+                style={{ top: `${(h - CAL_START) * HOUR_H - 6}px` }}
+              >
+                {fmtHourLabel(h)}
+              </div>
+            ))}
+          </div>
+
+          {/* Grid + events */}
+          <div className="flex-1 relative border-l border-gray-100 min-w-0">
+
+            {/* Grid lines */}
+            {Array.from({ length: CAL_HOURS }, (_, i) => i).map(i => (
+              <div key={i}>
+                <div className="absolute left-0 right-0 border-t border-gray-100"
+                  style={{ top: `${i * HOUR_H}px` }} />
+                <div className="absolute left-0 right-0 border-t border-dashed border-gray-50"
+                  style={{ top: `${i * HOUR_H + HOUR_H / 2}px` }} />
+              </div>
+            ))}
+            <div className="absolute left-0 right-0 border-t border-gray-100"
+              style={{ top: `${CAL_HOURS * HOUR_H}px` }} />
+
+            {/* Current time indicator */}
+            {showNow && (
+              <div className="absolute left-0 right-0 flex items-center pointer-events-none"
+                style={{ top: `${nowTop}px`, zIndex: 20 }}>
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1.5 flex-shrink-0" />
+                <div className="flex-1 h-px bg-red-500" />
+              </div>
+            )}
+
+            {/* Events */}
+            {events.map(({ appt, startMin, endMin, col, totalCols }) => {
+              const top    = ((startMin - CAL_START * 60) / 60) * HOUR_H;
+              const height = Math.max(((endMin - startMin) / 60) * HOUR_H, 22);
+              const pct    = 100 / totalCols;
+              const color  = resolveColor(appt.manicurist) || '#ec4899';
+              const isShort = height < 42;
+
+              return (
+                <div
+                  key={appt.id}
+                  onClick={() => onEventClick(appt)}
+                  className="absolute rounded-lg overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                  style={{
+                    top:             `${top + 1}px`,
+                    height:          `${height - 2}px`,
+                    left:            `calc(${col * pct}% + 2px)`,
+                    width:           `calc(${pct}% - 4px)`,
+                    backgroundColor: `${color}33`,
+                    borderLeft:      `3px solid ${color}`,
+                    zIndex:          10,
+                  }}
+                >
+                  <div className="px-1.5 py-1 h-full overflow-hidden">
+                    <p className="text-[11px] font-bold leading-tight truncate" style={{ color }}>
+                      {appt.client?.name}
+                    </p>
+                    {!isShort && (
+                      <p className="text-[10px] text-gray-500 leading-tight truncate mt-0.5">
+                        {formatTime(appt.date)}
+                        {appt.manicurist?.name ? ` · ${appt.manicurist.name.split(' ')[0]}` : ''}
+                      </p>
+                    )}
+                    {!isShort && appt.status === 'COMPLETED' && (
+                      <p className="text-[9px] text-emerald-600 font-semibold mt-0.5">✓ Completada</p>
+                    )}
+                    {!isShort && appt.status === 'CANCELLED' && (
+                      <p className="text-[9px] text-red-400 font-semibold mt-0.5">✗ Cancelada</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 
 export default function Appointments() {
   const [appointments, setAppointments] = useState([]);
@@ -357,20 +561,50 @@ export default function Appointments() {
             ))}
           </div>
 
-          {/* Status filter — calendar tab only */}
-          {tab === 'calendar' && (
-            <div className="flex gap-1 bg-white rounded-xl border border-gray-100 p-1 shadow-card w-fit max-w-full overflow-x-auto">
-              {STATUS_TABS.map(t => (
-                <button key={t.key} onClick={() => setStatusFilter(t.key)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${statusFilter === t.key ? 'bg-brand-gradient text-white shadow-soft' : 'text-gray-500 hover:text-gray-700'}`}>
-                  {t.label}
-                </button>
-              ))}
+          {/* Status filter + hourly toggle */}
+          {tab !== 'pending' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {tab === 'calendar' && (
+                <div className="flex gap-1 bg-white rounded-xl border border-gray-100 p-1 shadow-card overflow-x-auto">
+                  {STATUS_TABS.map(t => (
+                    <button key={t.key} onClick={() => setStatusFilter(t.key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${statusFilter === t.key ? 'bg-brand-gradient text-white shadow-soft' : 'text-gray-500 hover:text-gray-700'}`}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button
+                onClick={() => setTab(tab === 'hourly' ? 'calendar' : 'hourly')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-card ${
+                  tab === 'hourly'
+                    ? 'bg-brand-gradient text-white shadow-soft'
+                    : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Clock size={12} />
+                {tab === 'hourly' ? 'Vista Lista' : 'Vista Horaria'}
+              </button>
             </div>
           )}
 
+          {/* Hourly calendar view */}
+          {tab === 'hourly' && (
+            <HourlyCalendar
+              appointments={appointments}
+              selectedDate={selectedDate}
+              onDateChange={setSelectedDate}
+              getApptServices={getApptServices}
+              resolveColor={resolveManicuristColor}
+              onEventClick={(appt) => {
+                if (appt.status === 'PENDING') { openComplete(appt); }
+                else { setDetailsTarget(appt); setDetailsModal(true); }
+              }}
+            />
+          )}
+
           {/* Cards */}
-          {loading ? (
+          {tab !== 'hourly' && (loading ? (
             <div className="space-y-2.5">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="bg-white rounded-2xl h-20 animate-pulse border border-gray-100 shadow-card" />
@@ -449,7 +683,7 @@ export default function Appointments() {
                 );
               })}
             </div>
-          )}
+          ))}
         </div>
       </div>
 
