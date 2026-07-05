@@ -88,7 +88,11 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await req.prisma.client.delete({ where: { id: req.params.id } });
+    await req.prisma.$transaction([
+      // AppointmentService se borra en cascada al eliminar cada Appointment
+      req.prisma.appointment.deleteMany({ where: { clientId: req.params.id } }),
+      req.prisma.client.delete({ where: { id: req.params.id } }),
+    ]);
     res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: err.message });

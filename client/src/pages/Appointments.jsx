@@ -325,20 +325,18 @@ function HourlyCalendar({ appointments, selectedDate, onDateChange, getApptServi
                   }}
                 >
                   <div className="px-1.5 py-1 h-full overflow-hidden">
-                    <div className="flex items-start gap-0.5">
-                      <p className="text-[11px] font-bold leading-tight truncate flex-1" style={{ color }}>
-                        {appt.client?.name}
-                      </p>
-                      {appt.confirmed && appt.status === 'PENDING' && (
-                        <span title="Confirmada" style={{ color }} className="flex-shrink-0 opacity-80">
-                          <BadgeCheck size={10} />
-                        </span>
-                      )}
-                    </div>
+                    <p className="text-[11px] font-bold leading-tight truncate" style={{ color }}>
+                      {appt.client?.name}
+                    </p>
                     {!isShort && (
                       <p className="text-[10px] text-gray-500 leading-tight truncate mt-0.5">
                         {formatTime(appt.date)}
                         {appt.manicurist?.name ? ` · ${appt.manicurist.name.split(' ')[0]}` : ''}
+                      </p>
+                    )}
+                    {!isShort && appt.confirmed && appt.status === 'PENDING' && (
+                      <p className="text-[9px] font-semibold mt-0.5 flex items-center gap-0.5" style={{ color }}>
+                        <BadgeCheck size={9} /> Confirmada
                       </p>
                     )}
                     {!isShort && appt.status === 'COMPLETED' && (
@@ -806,7 +804,14 @@ export default function Appointments() {
           <form onSubmit={handleComplete} className="space-y-4">
             <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1.5"
               style={{ borderLeft: `4px solid ${resolveManicuristColor(completeTarget.manicurist)}` }}>
-              <p className="font-semibold text-gray-800">{completeTarget.client?.name}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-semibold text-gray-800">{completeTarget.client?.name}</p>
+                {completeTarget.confirmed && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200 flex-shrink-0">
+                    <BadgeCheck size={10} /> Confirmada
+                  </span>
+                )}
+              </div>
               {completeTarget.manicurist?.name && (
                 <p className="text-xs text-gray-400 flex items-center gap-1">
                   <UserCheck size={11} /> {completeTarget.manicurist.name}
