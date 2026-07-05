@@ -67,13 +67,57 @@ function ReportView({ report }) {
   if (!report) return null;
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+      {/* KPI row */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
         <SummaryCard title="Total Ingresos"   value={formatCurrency(report.totalIncome)}           tone="income"     />
         <SummaryCard title="Total Egresos"    value={formatCurrency(report.totalExpenses)}          tone="expense"    />
-        <SummaryCard title="Neto"             value={formatCurrency(report.net)}                                      />
+        <SummaryCard title="Neto bruto"       value={formatCurrency(report.net)}                                      />
         <SummaryCard title="Comisiones"       value={formatCurrency(report.totalCommissions)}       tone="commission" />
-        <SummaryCard title="Balance Final"    value={formatCurrency(report.netAfterCommissions)}
+        <SummaryCard title="Saldo del Salón"  value={formatCurrency(report.netAfterCommissions)}
           tone={report.netAfterCommissions >= 0 ? 'neutral' : 'expense'} />
+      </div>
+
+      {/* Account breakdown */}
+      <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+        <h3 className="section-title mb-4">Desglose de Cuentas</h3>
+        <div className="space-y-1 text-sm max-w-md">
+          <div className="flex justify-between py-1.5">
+            <span className="text-gray-500">Ingresos totales</span>
+            <span className="font-semibold text-emerald-600">{formatCurrency(report.totalIncome)}</span>
+          </div>
+          {report.totalExpenses > 0 && (
+            <div className="flex justify-between py-1.5">
+              <span className="text-gray-500">(-) Egresos</span>
+              <span className="font-semibold text-blush-500">-{formatCurrency(report.totalExpenses)}</span>
+            </div>
+          )}
+          <div className="flex justify-between py-1.5 border-t border-gray-100 mt-1">
+            <span className="text-gray-700 font-medium">= Neto bruto</span>
+            <span className="font-bold text-gray-800">{formatCurrency(report.net)}</span>
+          </div>
+
+          {report.manicuristLiquidation.length > 0 && (
+            <>
+              <div className="flex justify-between pt-3 pb-1">
+                <span className="text-gray-500">(-) Comisiones a pagar</span>
+                <span className="font-semibold text-mauve-600">-{formatCurrency(report.totalCommissions)}</span>
+              </div>
+              {report.manicuristLiquidation.map((m) => (
+                <div key={m.name} className="flex justify-between py-1 pl-4 text-xs">
+                  <span className="text-gray-400">{m.name} ({m.commissionPercentage}%)</span>
+                  <span className="text-mauve-500">-{formatCurrency(m.commissionEarned)}</span>
+                </div>
+              ))}
+            </>
+          )}
+
+          <div className="flex justify-between py-2.5 border-t-2 border-gray-200 mt-2">
+            <span className="font-bold text-gray-900">= Saldo del Salón</span>
+            <span className={`text-lg font-bold ${report.netAfterCommissions >= 0 ? 'text-gray-900' : 'text-blush-600'}`}>
+              {formatCurrency(report.netAfterCommissions)}
+            </span>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -120,9 +164,10 @@ function ReportView({ report }) {
               <tr className="border-b border-gray-100">
                 <th className="text-left py-2 table-header">Manicurista</th>
                 <th className="text-right py-2 table-header">Citas</th>
-                <th className="text-right py-2 table-header">Total Cobrado</th>
+                <th className="text-right py-2 table-header">Total cobrado</th>
                 <th className="text-right py-2 table-header">% Com.</th>
-                <th className="text-right py-2 table-header">Ganancias</th>
+                <th className="text-right py-2 table-header">Comisión a pagar</th>
+                <th className="text-right py-2 table-header">Salón retiene</th>
               </tr>
             </thead>
             <tbody>
@@ -132,9 +177,17 @@ function ReportView({ report }) {
                   <td className="py-3 text-right text-gray-500">{m.appointmentCount}</td>
                   <td className="py-3 text-right text-gray-600">{formatCurrency(m.totalBilled)}</td>
                   <td className="py-3 text-right text-mauve-600">{m.commissionPercentage}%</td>
-                  <td className="py-3 text-right font-bold text-emerald-600">{formatCurrency(m.commissionEarned)}</td>
+                  <td className="py-3 text-right font-bold text-mauve-600">{formatCurrency(m.commissionEarned)}</td>
+                  <td className="py-3 text-right font-bold text-emerald-600">{formatCurrency(m.totalBilled - m.commissionEarned)}</td>
                 </tr>
               ))}
+              {report.manicuristLiquidation.length > 1 && (
+                <tr className="border-t-2 border-gray-200 bg-gray-50">
+                  <td className="py-2.5 font-bold text-gray-700 text-xs uppercase tracking-wide" colSpan={4}>Total</td>
+                  <td className="py-2.5 text-right font-bold text-mauve-600">{formatCurrency(report.totalCommissions)}</td>
+                  <td className="py-2.5 text-right font-bold text-emerald-600">{formatCurrency(report.totalIncome - report.totalCommissions)}</td>
+                </tr>
+              )}
             </tbody>
           </table>
         )}
