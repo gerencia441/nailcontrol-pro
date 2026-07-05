@@ -46,6 +46,7 @@ model Appointment {
   manicuristId       String
   date               DateTime
   status             AppointmentStatus    @default(PENDING)
+  confirmed          Boolean              @default(false)
   finalPricePaid     Float?
   paymentMethod      PaymentMethod?
   createdAt          DateTime             @default(now())

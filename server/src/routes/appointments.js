@@ -188,11 +188,12 @@ router.patch('/:id/complete', async (req, res) => {
 
 router.patch('/:id', async (req, res) => {
   try {
-    const { status, date, manicuristId, serviceIds } = req.body;
+    const { status, date, manicuristId, serviceIds, confirmed } = req.body;
     const data = {
       ...(status && { status }),
       ...(date && { date: bogotaDateTimeToUtc(date) }),
       ...(manicuristId && { manicuristId }),
+      ...(confirmed !== undefined && { confirmed }),
     };
 
     if (serviceIds !== undefined) {

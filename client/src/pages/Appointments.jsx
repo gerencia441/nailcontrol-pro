@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Plus, CheckCircle, XCircle, Clock, UserCheck, Trash2, Pencil, ChevronLeft, ChevronRight, Calendar, MessageCircle } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, Clock, UserCheck, Trash2, Pencil, ChevronLeft, ChevronRight, Calendar, MessageCircle, BadgeCheck } from 'lucide-react';
 import { api } from '../lib/api.js';
 import Button from '../components/ui/Button.jsx';
 import Modal from '../components/ui/Modal.jsx';
@@ -325,9 +325,16 @@ function HourlyCalendar({ appointments, selectedDate, onDateChange, getApptServi
                   }}
                 >
                   <div className="px-1.5 py-1 h-full overflow-hidden">
-                    <p className="text-[11px] font-bold leading-tight truncate" style={{ color }}>
-                      {appt.client?.name}
-                    </p>
+                    <div className="flex items-start gap-0.5">
+                      <p className="text-[11px] font-bold leading-tight truncate flex-1" style={{ color }}>
+                        {appt.client?.name}
+                      </p>
+                      {appt.confirmed && appt.status === 'PENDING' && (
+                        <span title="Confirmada" style={{ color }} className="flex-shrink-0 opacity-80">
+                          <BadgeCheck size={10} />
+                        </span>
+                      )}
+                    </div>
                     {!isShort && (
                       <p className="text-[10px] text-gray-500 leading-tight truncate mt-0.5">
                         {formatTime(appt.date)}
@@ -475,6 +482,12 @@ export default function Appointments() {
   const handleDeleteAppt = async (id) => {
     if (!confirm('¿Eliminar esta cita?')) return;
     try { await api.deleteAppointment(id); loadAppointments(); }
+    catch (err) { alert(err.message); }
+  };
+
+  const toggleConfirmed = async (appt, e) => {
+    e.stopPropagation();
+    try { await api.updateAppointment(appt.id, { confirmed: !appt.confirmed }); loadAppointments(); }
     catch (err) { alert(err.message); }
   };
 
@@ -650,9 +663,23 @@ export default function Appointments() {
                     <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                       {appt.status === 'PENDING' && (
                         <>
+                          {/* Confirmar cita */}
+                          <button
+                            onClick={(e) => toggleConfirmed(appt, e)}
+                            title={appt.confirmed ? 'Cita confirmada' : 'Confirmar cita'}
+                            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                              appt.confirmed
+                                ? 'text-teal-500 bg-teal-50'
+                                : 'text-gray-300 hover:bg-teal-50 hover:text-teal-400'
+                            }`}
+                          >
+                            <BadgeCheck size={15} />
+                          </button>
+                          {/* Completar cita */}
                           <button
                             onClick={() => openComplete(appt)}
                             className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                            title="Completar cita"
                           >
                             <CheckCircle size={14} />
                           </button>
