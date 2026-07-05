@@ -258,7 +258,7 @@ function HourlyCalendar({ appointments, selectedDate, onDateChange, getApptServi
       </div>
 
       {/* Scrollable area */}
-      <div ref={scrollRef} className="overflow-y-auto" style={{ height: 'calc(100vh - 18rem)' }}>
+      <div ref={scrollRef} className="overflow-y-auto" style={{ height: '440px' }}>
         <div className="relative flex" style={{ height: `${CAL_HOURS * HOUR_H}px` }}>
 
           {/* Hour labels */}
@@ -561,35 +561,8 @@ export default function Appointments() {
             ))}
           </div>
 
-          {/* Status filter + hourly toggle */}
-          {tab !== 'pending' && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {tab === 'calendar' && (
-                <div className="flex gap-1 bg-white rounded-xl border border-gray-100 p-1 shadow-card overflow-x-auto">
-                  {STATUS_TABS.map(t => (
-                    <button key={t.key} onClick={() => setStatusFilter(t.key)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${statusFilter === t.key ? 'bg-brand-gradient text-white shadow-soft' : 'text-gray-500 hover:text-gray-700'}`}>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <button
-                onClick={() => setTab(tab === 'hourly' ? 'calendar' : 'hourly')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-card ${
-                  tab === 'hourly'
-                    ? 'bg-brand-gradient text-white shadow-soft'
-                    : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Clock size={12} />
-                {tab === 'hourly' ? 'Vista Lista' : 'Vista Horaria'}
-              </button>
-            </div>
-          )}
-
-          {/* Hourly calendar view */}
-          {tab === 'hourly' && (
+          {/* Hourly calendar — always visible in day view */}
+          {tab === 'calendar' && (
             <HourlyCalendar
               appointments={appointments}
               selectedDate={selectedDate}
@@ -603,8 +576,23 @@ export default function Appointments() {
             />
           )}
 
+          {/* Status filter — only in day view */}
+          {tab === 'calendar' && (
+            <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Listado del día</p>
+              <div className="flex gap-1 bg-white rounded-xl border border-gray-100 p-1 shadow-card overflow-x-auto">
+                {STATUS_TABS.map(t => (
+                  <button key={t.key} onClick={() => setStatusFilter(t.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${statusFilter === t.key ? 'bg-brand-gradient text-white shadow-soft' : 'text-gray-500 hover:text-gray-700'}`}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Cards */}
-          {tab !== 'hourly' && (loading ? (
+          {loading ? (
             <div className="space-y-2.5">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="bg-white rounded-2xl h-20 animate-pulse border border-gray-100 shadow-card" />
@@ -683,7 +671,7 @@ export default function Appointments() {
                 );
               })}
             </div>
-          ))}
+          )}
         </div>
       </div>
 
