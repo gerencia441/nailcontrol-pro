@@ -40,8 +40,9 @@ router.get('/:id', async (req, res) => {
     if (!client) return res.status(404).json({ error: 'Not found' });
     const parsed = parseTags(client);
     parsed.appointments = parsed.appointments.map((a) => {
+      const svcs = a.services?.map((s) => s.service) ?? [];
       const { services, ...rest } = a;
-      return { ...rest, service: services?.[0]?.service ?? null };
+      return { ...rest, services: svcs, service: svcs[0] ?? null };
     });
     res.json(parsed);
   } catch (err) {
