@@ -85,6 +85,8 @@ export const api = {
 
   // Balances (admin only)
   getBalances: () => request('GET', '/finances/balances'),
+  getPendingCommissions: () => request('GET', '/finances/pending-commissions'),
+  payCommission: (data) => request('POST', '/finances/pay-commission', data),
 
   // Users (admin only)
   getUsers: () => request('GET', '/users'),

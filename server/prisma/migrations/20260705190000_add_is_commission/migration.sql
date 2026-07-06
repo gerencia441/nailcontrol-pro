@@ -1,0 +1,1 @@
+ALTER TABLE `Finance` ADD COLUMN `isCommission` TINYINT(1) NOT NULL DEFAULT 0;

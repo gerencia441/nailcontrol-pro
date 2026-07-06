@@ -125,7 +125,9 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
 
     if (!liquidationMap[key]) {
       liquidationMap[key] = {
+        id: appt.manicurist.id,
         name: appt.manicurist.name,
+        color: appt.manicurist.color,
         commissionPercentage,
         totalBilled: 0,
         commissionEarned: 0,
@@ -238,6 +240,78 @@ router.get('/summary', async (req, res) => {
     res.json(report);
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /api/finances/pending-commissions — comisiones acumuladas sin pagar por manicurista
+router.get('/pending-commissions', async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
+  try {
+    const [manicurists, appointments, payments] = await Promise.all([
+      req.prisma.manicurist.findMany({ orderBy: { name: 'asc' } }),
+      req.prisma.appointment.findMany({
+        where: { status: 'COMPLETED' },
+        select: { manicuristId: true, finalPricePaid: true, manicurist: { select: { commissionPercentage: true } } },
+      }),
+      req.prisma.finance.findMany({
+        where: { isCommission: true, type: 'EXPENSE' },
+        select: { manicuristId: true, amount: true },
+      }),
+    ]);
+
+    const earned = {};
+    for (const appt of appointments) {
+      const amt = (Number(appt.finalPricePaid) || 0) * (Number(appt.manicurist.commissionPercentage) || 0) / 100;
+      earned[appt.manicuristId] = (earned[appt.manicuristId] || 0) + amt;
+    }
+
+    const paid = {};
+    for (const p of payments) {
+      if (p.manicuristId) paid[p.manicuristId] = (paid[p.manicuristId] || 0) + p.amount;
+    }
+
+    const result = manicurists.map((m) => ({
+      id: m.id,
+      name: m.name,
+      color: m.color,
+      commissionPercentage: m.commissionPercentage,
+      totalEarned: earned[m.id] || 0,
+      totalPaid:   paid[m.id]   || 0,
+      pending:     (earned[m.id] || 0) - (paid[m.id] || 0),
+    }));
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/finances/pay-commission — registrar pago de comisión
+router.post('/pay-commission', async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
+  try {
+    const { manicuristId, amount, paymentMethod } = req.body;
+    if (!manicuristId || !amount || !paymentMethod) {
+      return res.status(400).json({ error: 'manicuristId, amount y paymentMethod son requeridos' });
+    }
+    const manicurist = await req.prisma.manicurist.findUnique({ where: { id: manicuristId } });
+    if (!manicurist) return res.status(404).json({ error: 'Manicurista no encontrada' });
+
+    const finance = await req.prisma.finance.create({
+      data: {
+        type: 'EXPENSE',
+        isCommission: true,
+        amount: parseFloat(amount),
+        description: `Pago de comisión - ${manicurist.name}`,
+        date: new Date(),
+        paymentMethod,
+        manicuristId: manicurist.id,
+        manicuristColor: manicurist.color,
+      },
+    });
+    res.status(201).json(finance);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

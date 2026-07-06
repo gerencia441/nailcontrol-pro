@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, TrendingUp, TrendingDown, BarChart3, Landmark, Wallet } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, TrendingDown, BarChart3, Landmark, Wallet, CreditCard } from 'lucide-react';
 import { api } from '../lib/api.js';
 import Button from '../components/ui/Button.jsx';
 import Modal from '../components/ui/Modal.jsx';
@@ -64,10 +64,11 @@ function SummaryCard({ title, value, tone = 'neutral' }) {
   );
 }
 
-function ReportView({ report, isAdmin }) {
+function ReportView({ report, isAdmin, pendingCommissions = [], onPayCommission }) {
   if (!report) return null;
 
   const myData = !isAdmin && report.manicuristLiquidation?.[0];
+  const pendingMap = Object.fromEntries(pendingCommissions.map((p) => [p.id, p]));
 
   if (!isAdmin) {
     // Vista manicurista: solo sus ingresos y su comisión
@@ -236,26 +237,56 @@ function ReportView({ report, isAdmin }) {
                 <th className="text-right py-2 table-header">Citas</th>
                 <th className="text-right py-2 table-header">Total cobrado</th>
                 <th className="text-right py-2 table-header">% Com.</th>
-                <th className="text-right py-2 table-header">Comisión a pagar</th>
+                <th className="text-right py-2 table-header">Este periodo</th>
+                <th className="text-right py-2 table-header">Acumulado</th>
                 <th className="text-right py-2 table-header">Salón retiene</th>
+                <th className="py-2" />
               </tr>
             </thead>
             <tbody>
-              {report.manicuristLiquidation.map((m) => (
-                <tr key={m.name} className="border-b border-gray-50 last:border-0">
-                  <td className="py-3 font-semibold text-gray-800">{m.name}</td>
-                  <td className="py-3 text-right text-gray-500">{m.appointmentCount}</td>
-                  <td className="py-3 text-right text-gray-600">{formatCurrency(m.totalBilled)}</td>
-                  <td className="py-3 text-right text-mauve-600">{m.commissionPercentage}%</td>
-                  <td className="py-3 text-right font-bold text-mauve-600">{formatCurrency(m.commissionEarned)}</td>
-                  <td className="py-3 text-right font-bold text-emerald-600">{formatCurrency(m.totalBilled - m.commissionEarned)}</td>
-                </tr>
-              ))}
+              {report.manicuristLiquidation.map((m) => {
+                const pc = pendingMap[m.id];
+                return (
+                  <tr key={m.name} className="border-b border-gray-50 last:border-0">
+                    <td className="py-3 font-semibold text-gray-800">
+                      <div className="flex items-center gap-2">
+                        {m.color && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />}
+                        {m.name}
+                      </div>
+                    </td>
+                    <td className="py-3 text-right text-gray-500">{m.appointmentCount}</td>
+                    <td className="py-3 text-right text-gray-600">{formatCurrency(m.totalBilled)}</td>
+                    <td className="py-3 text-right text-mauve-600">{m.commissionPercentage}%</td>
+                    <td className="py-3 text-right font-bold text-mauve-600">{formatCurrency(m.commissionEarned)}</td>
+                    <td className="py-3 text-right">
+                      {pc ? (
+                        <span className={`font-bold ${pc.pending > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                          {formatCurrency(pc.pending)}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="py-3 text-right font-bold text-emerald-600">{formatCurrency(m.totalBilled - m.commissionEarned)}</td>
+                    <td className="py-3 text-right">
+                      {pc && pc.pending > 0 && onPayCommission && (
+                        <button
+                          onClick={() => onPayCommission(pc)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-mauve-50 text-mauve-700 text-xs font-semibold hover:bg-mauve-100 transition-colors"
+                        >
+                          <CreditCard size={11} /> Pagar
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
               {report.manicuristLiquidation.length > 1 && (
                 <tr className="border-t-2 border-gray-200 bg-gray-50">
-                  <td className="py-2.5 font-bold text-gray-700 text-xs uppercase tracking-wide" colSpan={4}>Total</td>
-                  <td className="py-2.5 text-right font-bold text-mauve-600">{formatCurrency(report.totalCommissions)}</td>
+                  <td className="py-2.5 font-bold text-gray-700 text-xs uppercase tracking-wide" colSpan={5}>Total</td>
+                  <td className="py-2.5 text-right font-bold text-amber-600">
+                    {formatCurrency(pendingCommissions.reduce((s, p) => s + p.pending, 0))}
+                  </td>
                   <td className="py-2.5 text-right font-bold text-emerald-600">{formatCurrency(report.totalIncome - report.totalCommissions)}</td>
+                  <td />
                 </tr>
               )}
             </tbody>
@@ -328,12 +359,40 @@ export default function Finances() {
   const [summary,        setSummary]        = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
 
-  const [balances, setBalances] = useState(null);
+  const [balances,            setBalances]            = useState(null);
+  const [pendingCommissions,  setPendingCommissions]  = useState([]);
+  const [payModal,            setPayModal]            = useState(null); // { id, name, color, pending }
+  const [payForm,             setPayForm]             = useState({ amount: '', paymentMethod: 'CASH' });
+  const [paying,              setPaying]              = useState(false);
 
   const load = () => api.getFinances().then(setFinances).finally(() => setLoading(false));
-  const loadBalances = () => { if (isAdmin) api.getBalances().then(setBalances).catch(() => {}); };
+  const loadBalances = () => api.getBalances().then(setBalances).catch(() => {});
+  const loadPending  = () => api.getPendingCommissions().then(setPendingCommissions).catch(() => {});
 
-  useEffect(() => { load(); loadBalances(); }, []);
+  useEffect(() => { load(); }, []);
+  useEffect(() => { if (isAdmin) { loadBalances(); loadPending(); } }, [isAdmin]);
+
+  const openPayModal = (pc) => {
+    setPayModal(pc);
+    setPayForm({ amount: String(Math.round(pc.pending)), paymentMethod: 'CASH' });
+  };
+
+  const handlePayCommission = async (e) => {
+    e.preventDefault();
+    setPaying(true);
+    try {
+      await api.payCommission({
+        manicuristId:  payModal.id,
+        amount:        parseFloat(payForm.amount),
+        paymentMethod: payForm.paymentMethod,
+      });
+      setPayModal(null);
+      load();
+      loadBalances();
+      loadPending();
+    } catch (err) { alert(err.message); }
+    finally { setPaying(false); }
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -344,13 +403,14 @@ export default function Finances() {
       setForm(EMPTY_FORM);
       load();
       loadBalances();
+      loadPending();
     } catch (err) { alert(err.message); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
     if (!confirm('Eliminar este registro?')) return;
-    try { await api.deleteFinance(id); load(); loadBalances(); }
+    try { await api.deleteFinance(id); load(); loadBalances(); loadPending(); }
     catch (err) { alert(err.message); }
   };
 
@@ -416,7 +476,7 @@ export default function Finances() {
 
       {/* Entries tab */}
       {tab === 'entries' && isAdmin && balances && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card flex items-center gap-4">
             <div className="w-10 h-10 rounded-2xl bg-sky-50 flex items-center justify-center flex-shrink-0">
               <Landmark size={19} className="text-sky-500" />
@@ -523,7 +583,7 @@ export default function Finances() {
               {reportLoading ? 'Generando...' : 'Generar Cierre'}
             </Button>
           </div>
-          <ReportView report={report} isAdmin={isAdmin} />
+          <ReportView report={report} isAdmin={isAdmin} pendingCommissions={pendingCommissions} onPayCommission={openPayModal} />
         </div>
       )}
 
@@ -547,7 +607,7 @@ export default function Finances() {
           {weekReport && (
             <p className="text-sm text-gray-400">Semana: {weekReport.dateFrom} a {weekReport.dateTo}</p>
           )}
-          <ReportView report={weekReport} isAdmin={isAdmin} />
+          <ReportView report={weekReport} isAdmin={isAdmin} pendingCommissions={pendingCommissions} onPayCommission={openPayModal} />
         </div>
       )}
 
@@ -626,9 +686,76 @@ export default function Finances() {
           {summary && (
             <p className="text-sm text-gray-400">Periodo: {summary.dateFrom} a {summary.dateTo}</p>
           )}
-          <ReportView report={summary} isAdmin={isAdmin} />
+          <ReportView report={summary} isAdmin={isAdmin} pendingCommissions={pendingCommissions} onPayCommission={openPayModal} />
         </div>
       )}
+
+      {/* Pay Commission Modal */}
+      <Modal
+        isOpen={!!payModal}
+        onClose={() => setPayModal(null)}
+        title="Pagar Comisión"
+        maxWidth="max-w-sm"
+      >
+        {payModal && (
+          <form onSubmit={handlePayCommission} className="space-y-4">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-mauve-50 border border-mauve-100">
+              {payModal.color && (
+                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: payModal.color }} />
+              )}
+              <div>
+                <p className="text-sm font-semibold text-gray-800">{payModal.name}</p>
+                <p className="text-xs text-gray-400">Comisión acumulada sin pagar</p>
+              </div>
+              <span className="ml-auto text-base font-bold text-amber-600">{formatCurrency(payModal.pending)}</span>
+            </div>
+
+            <Input
+              label="Monto a pagar (COP)"
+              id="pay-amount"
+              type="number"
+              min="1"
+              step="1000"
+              value={payForm.amount}
+              onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })}
+              required
+            />
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Método de pago *</label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: 'CASH',        label: 'Efectivo',    icon: <Wallet size={14} /> },
+                  { value: 'BANCOLOMBIA', label: 'Banco',       icon: <Landmark size={14} /> },
+                ].map(({ value, label, icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPayForm({ ...payForm, paymentMethod: value })}
+                    className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                      payForm.paymentMethod === value
+                        ? 'bg-mauve-600 text-white border-mauve-600 shadow-soft'
+                        : 'border-gray-200 text-gray-600 hover:border-mauve-300'
+                    }`}
+                  >
+                    {icon} {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button type="button" variant="ghost" onClick={() => setPayModal(null)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={paying} className="flex-1">
+                <CreditCard size={14} />
+                {paying ? 'Registrando...' : 'Confirmar Pago'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
 
       {/* New Finance Modal */}
       <Modal
