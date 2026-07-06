@@ -17,7 +17,12 @@ router.get('/', async (req, res) => {
 router.put('/', async (req, res) => {
   if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
   try {
-    const entries = Object.entries(req.body);
+    const now = new Date().toISOString();
+    const body = { ...req.body };
+    // Al ajustar un saldo, registrar el momento del ajuste
+    if ('balance_banco'    in body) body.balance_banco_at    = now;
+    if ('balance_efectivo' in body) body.balance_efectivo_at = now;
+    const entries = Object.entries(body);
     await req.prisma.$transaction(
       entries.map(([key, value]) =>
         req.prisma.setting.upsert({
