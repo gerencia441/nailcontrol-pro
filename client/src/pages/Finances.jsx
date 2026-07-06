@@ -715,7 +715,7 @@ export default function Finances() {
               id="pay-amount"
               type="number"
               min="1"
-              step="1000"
+              step="1"
               value={payForm.amount}
               onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })}
               required
@@ -786,7 +786,7 @@ export default function Finances() {
           />
           <Input
             label="Monto (COP) *" id="fin-amount"
-            type="number" min="0" step="1000"
+            type="number" min="0" step="1"
             value={form.amount}
             onChange={(e) => setForm({ ...form, amount: e.target.value })}
             required

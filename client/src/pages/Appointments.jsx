@@ -852,7 +852,7 @@ export default function Appointments() {
               </a>
             )}
 
-            <Input label="Valor Real Pagado (COP) *" id="final-price" type="number" min="0" step="1000" required
+            <Input label="Valor Real Pagado (COP) *" id="final-price" type="number" min="0" step="1" required
               value={completeForm.finalPricePaid}
               onChange={(e) => setCompleteForm({ ...completeForm, finalPricePaid: e.target.value })} />
             <Select label="Método de Pago *" id="payment-method" value={completeForm.paymentMethod} required

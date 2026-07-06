@@ -103,7 +103,7 @@ export default function Settings() {
                 label="Saldo real en banco (COP)"
                 id="balance-banco"
                 type="number"
-                step="1000"
+                step="1"
                 value={form.banco}
                 onChange={(e) => setForm({ ...form, banco: e.target.value })}
               />
@@ -128,7 +128,7 @@ export default function Settings() {
                 label="Saldo real en efectivo (COP)"
                 id="balance-efectivo"
                 type="number"
-                step="1000"
+                step="1"
                 value={form.efectivo}
                 onChange={(e) => setForm({ ...form, efectivo: e.target.value })}
               />

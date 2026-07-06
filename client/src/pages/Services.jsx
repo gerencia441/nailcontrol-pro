@@ -120,7 +120,7 @@ export default function Services() {
           <Input label="Nombre del Servicio *" id="svc-name" value={form.name} required placeholder="Ej: Manicure Semipermanente"
             onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input label="Precio Base (COP) *" id="svc-price" type="number" min="0" step="1000" value={form.basePrice} required placeholder="35000"
+            <Input label="Precio Base (COP) *" id="svc-price" type="number" min="0" step="1" value={form.basePrice} required placeholder="35000"
               onChange={(e) => setForm({ ...form, basePrice: e.target.value })} />
             <Input label="Duración (minutos) *" id="svc-duration" type="number" min="1" value={form.durationMinutes} required placeholder="60"
               onChange={(e) => setForm({ ...form, durationMinutes: e.target.value })} />
