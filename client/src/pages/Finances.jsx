@@ -725,22 +725,27 @@ export default function Finances() {
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Método de pago *</label>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { value: 'CASH',        label: 'Efectivo',    icon: <Wallet size={14} /> },
-                  { value: 'BANCOLOMBIA', label: 'Banco',       icon: <Landmark size={14} /> },
-                ].map(({ value, label, icon }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setPayForm({ ...payForm, paymentMethod: value })}
-                    className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-semibold transition-all ${
-                      payForm.paymentMethod === value
-                        ? 'bg-mauve-600 text-white border-mauve-600 shadow-soft'
-                        : 'border-gray-200 text-gray-600 hover:border-mauve-300'
-                    }`}
-                  >
-                    {icon} {label}
-                  </button>
-                ))}
+                  { value: 'CASH',        label: 'Efectivo', icon: <Wallet size={15} />,   ring: 'ring-emerald-400', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-400' },
+                  { value: 'BANCOLOMBIA', label: 'Banco',    icon: <Landmark size={15} />, ring: 'ring-sky-400',     bg: 'bg-sky-50',     text: 'text-sky-700',     dot: 'bg-sky-400'     },
+                ].map(({ value, label, icon, ring, bg, text, dot }) => {
+                  const selected = payForm.paymentMethod === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPayForm({ ...payForm, paymentMethod: value })}
+                      className={`relative flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 text-sm font-semibold transition-all ${
+                        selected
+                          ? `${bg} ${text} border-transparent ring-2 ${ring}`
+                          : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                      }`}
+                    >
+                      {selected && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />}
+                      {icon}
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
