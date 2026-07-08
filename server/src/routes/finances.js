@@ -105,8 +105,11 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
     }),
   ]);
 
-  const incomes = finances.filter((f) => f.type === 'INCOME');
-  const expenses = finances.filter((f) => f.type === 'EXPENSE');
+  const incomes  = finances.filter((f) => f.type === 'INCOME');
+  // Los pagos de comisión (isCommission=true) se excluyen de totalExpenses porque
+  // ya quedan reflejados en netAfterCommissions. Incluirlos causaría doble descuento.
+  const expenses = finances.filter((f) => f.type === 'EXPENSE' && !f.isCommission);
+  const commissionPayments = finances.filter((f) => f.type === 'EXPENSE' && f.isCommission);
 
   const byPaymentMethod = incomes.reduce((acc, f) => {
     const pm = f.paymentMethod || 'UNKNOWN';
@@ -114,8 +117,9 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
     return acc;
   }, {});
 
-  const totalIncome = incomes.reduce((s, f) => s + f.amount, 0);
-  const totalExpenses = expenses.reduce((s, f) => s + f.amount, 0);
+  const totalIncome          = incomes.reduce((s, f) => s + f.amount, 0);
+  const totalExpenses        = expenses.reduce((s, f) => s + f.amount, 0);
+  const totalCommissionsPaid = commissionPayments.reduce((s, f) => s + f.amount, 0);
 
   const liquidationMap = {};
   for (const appt of appointments) {
@@ -159,6 +163,7 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
     totalExpenses,
     net,
     totalCommissions,
+    totalCommissionsPaid,
     netAfterCommissions: net - totalCommissions,
     byPaymentMethod,
     appointmentStatus,
@@ -254,11 +259,15 @@ router.get('/summary', async (req, res) => {
 router.get('/pending-commissions', async (req, res) => {
   if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
   try {
-    const [manicurists, appointments, payments] = await Promise.all([
+    const [manicurists, incomeFinances, payments] = await Promise.all([
       req.prisma.manicurist.findMany({ orderBy: { name: 'asc' } }),
-      req.prisma.appointment.findMany({
-        where: { status: 'COMPLETED' },
-        select: { manicuristId: true, finalPricePaid: true, manicurist: { select: { commissionPercentage: true } } },
+      // Usamos los registros Finance de tipo INCOME con manicuristId, que se crean
+      // al completar cada cita. Cada registro guarda commissionPercentage (el % en
+      // vigor al momento del servicio). Para registros anteriores a esta mejora,
+      // commissionPercentage es null y se usa el % actual como fallback.
+      req.prisma.finance.findMany({
+        where: { type: 'INCOME', manicuristId: { not: null } },
+        select: { manicuristId: true, amount: true, commissionPercentage: true },
       }),
       req.prisma.finance.findMany({
         where: { isCommission: true, type: 'EXPENSE' },
@@ -266,10 +275,15 @@ router.get('/pending-commissions', async (req, res) => {
       }),
     ]);
 
+    const manicuristMap = Object.fromEntries(manicurists.map((m) => [m.id, m]));
+
     const earned = {};
-    for (const appt of appointments) {
-      const amt = (Number(appt.finalPricePaid) || 0) * (Number(appt.manicurist.commissionPercentage) || 0) / 100;
-      earned[appt.manicuristId] = (earned[appt.manicuristId] || 0) + amt;
+    for (const f of incomeFinances) {
+      const m = manicuristMap[f.manicuristId];
+      if (!m) continue; // manicurista eliminada, ignorar
+      // Prioriza el % guardado al momento del servicio; si no existe, usa el actual
+      const pct = f.commissionPercentage != null ? f.commissionPercentage : m.commissionPercentage;
+      earned[f.manicuristId] = (earned[f.manicuristId] || 0) + (Number(f.amount) || 0) * pct / 100;
     }
 
     const paid = {};

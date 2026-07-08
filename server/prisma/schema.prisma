@@ -61,17 +61,18 @@ model Appointment {
 }
 
 model Finance {
-  id              String         @id @default(cuid())
-  type            FinanceType
-  amount          Float
-  description     String
-  date            DateTime
-  paymentMethod   PaymentMethod?
-  manicuristColor String?
-  manicuristId    String?
-  isCommission    Boolean        @default(false)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id                   String         @id @default(cuid())
+  type                 FinanceType
+  amount               Float
+  description          String
+  date                 DateTime
+  paymentMethod        PaymentMethod?
+  manicuristColor      String?
+  manicuristId         String?
+  isCommission         Boolean        @default(false)
+  commissionPercentage Float?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 }
 
 model AppointmentService {

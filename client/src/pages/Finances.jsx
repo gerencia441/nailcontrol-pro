@@ -699,15 +699,29 @@ export default function Finances() {
       >
         {payModal && (
           <form onSubmit={handlePayCommission} className="space-y-4">
+            {/* Encabezado con manicurista */}
             <div className="flex items-center gap-3 p-3 rounded-xl bg-mauve-50 border border-mauve-100">
               {payModal.color && (
                 <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: payModal.color }} />
               )}
-              <div>
-                <p className="text-sm font-semibold text-gray-800">{payModal.name}</p>
-                <p className="text-xs text-gray-400">Comisión acumulada sin pagar</p>
+              <p className="text-sm font-semibold text-gray-800">{payModal.name}</p>
+              <span className="ml-auto text-xs text-gray-400">{payModal.commissionPercentage}% comisión</span>
+            </div>
+
+            {/* Desglose del cálculo */}
+            <div className="rounded-xl border border-gray-100 divide-y divide-gray-100 text-sm overflow-hidden">
+              <div className="flex justify-between items-center px-4 py-2.5 bg-gray-50">
+                <span className="text-gray-500">Total ganado (todos los servicios)</span>
+                <span className="font-semibold text-gray-700">{formatCurrency(payModal.totalEarned)}</span>
               </div>
-              <span className="ml-auto text-base font-bold text-amber-600">{formatCurrency(payModal.pending)}</span>
+              <div className="flex justify-between items-center px-4 py-2.5">
+                <span className="text-gray-500">Ya pagado anteriormente</span>
+                <span className="font-semibold text-emerald-600">− {formatCurrency(payModal.totalPaid)}</span>
+              </div>
+              <div className="flex justify-between items-center px-4 py-2.5 bg-amber-50">
+                <span className="font-semibold text-amber-700">Pendiente de pago</span>
+                <span className="font-bold text-amber-600">{formatCurrency(payModal.pending)}</span>
+              </div>
             </div>
 
             <Input

@@ -151,6 +151,9 @@ router.patch('/:id/complete', async (req, res) => {
           paymentMethod,
           manicuristColor: appt.manicurist?.color || null,
           manicuristId: appt.manicurist?.id || null,
+          // Guardar el % de comisión vigente para que cambios futuros no
+          // alteren el cálculo de comisiones históricas.
+          commissionPercentage: appt.manicurist?.commissionPercentage ?? null,
         },
       });
 
