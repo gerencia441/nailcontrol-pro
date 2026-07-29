@@ -20,6 +20,36 @@ function mapAppointment(appointment) {
   };
 }
 
+async function findSchedulingConflict(prisma, { manicuristId, start, end, excludeId }) {
+  const WINDOW_MS = 12 * 60 * 60 * 1000; // padding generoso para no perder solapes reales
+  const candidates = await prisma.appointment.findMany({
+    where: {
+      manicuristId,
+      status: { not: 'CANCELLED' },
+      ...(excludeId && { id: { not: excludeId } }),
+      date: {
+        gte: new Date(start.getTime() - WINDOW_MS),
+        lt: new Date(end.getTime() + WINDOW_MS),
+      },
+    },
+    select: {
+      id: true,
+      date: true,
+      services: { select: { service: { select: { durationMinutes: true } } } },
+    },
+  });
+
+  return (
+    candidates.find((appt) => {
+      const totalMinutes =
+        appt.services.reduce((sum, s) => sum + (s.service?.durationMinutes || 60), 0) || 60;
+      const apptStart = new Date(appt.date);
+      const apptEnd = new Date(apptStart.getTime() + totalMinutes * 60000);
+      return start < apptEnd && end > apptStart;
+    }) || null
+  );
+}
+
 router.get('/', async (req, res) => {
   try {
     const { date, status } = req.query;
@@ -54,6 +84,21 @@ router.post('/', async (req, res) => {
 
     if (resolvedServiceIds.length === 0) {
       return res.status(400).json({ error: 'At least one service is required' });
+    }
+
+    const services = await req.prisma.service.findMany({
+      where: { id: { in: resolvedServiceIds } },
+      select: { durationMinutes: true },
+    });
+    const totalDurationMinutes = services.reduce((sum, s) => sum + (s.durationMinutes || 60), 0) || 60;
+    const start = bogotaDateTimeToUtc(date);
+    const end = new Date(start.getTime() + totalDurationMinutes * 60000);
+
+    const conflict = await findSchedulingConflict(req.prisma, { manicuristId, start, end });
+    if (conflict) {
+      return res.status(400).json({
+        error: 'No se puede agendar: la manicurista ya tiene una cita programada en ese horario.',
+      });
     }
 
     let resolvedClientId = clientId;
@@ -193,6 +238,10 @@ router.patch('/:id/complete', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const { status, date, manicuristId, serviceIds, confirmed } = req.body;
+    const needsConflictCheck = date !== undefined || manicuristId !== undefined || serviceIds !== undefined;
+    // Nota: un "des-cancelar" (status CANCELLED -> PENDING sin tocar fecha/manicurista/servicios)
+    // no dispara este check. No hay flujo de UI para eso hoy; se acepta el hueco.
+
     const data = {
       ...(status && { status }),
       ...(date && { date: bogotaDateTimeToUtc(date) }),
@@ -200,16 +249,13 @@ router.patch('/:id', async (req, res) => {
       ...(confirmed !== undefined && { confirmed }),
     };
 
-    if (serviceIds !== undefined) {
-      const resolvedServiceIds = [...new Set((Array.isArray(serviceIds) ? serviceIds : []).filter(Boolean))];
+    let resolvedServiceIds = null;
+    let existing = null;
 
-      if (resolvedServiceIds.length === 0) {
-        return res.status(400).json({ error: 'At least one service is required' });
-      }
-
-      const existing = await req.prisma.appointment.findUnique({
+    if (serviceIds !== undefined || needsConflictCheck) {
+      existing = await req.prisma.appointment.findUnique({
         where: { id: req.params.id },
-        select: { status: true },
+        include: { services: { include: { service: true } } },
       });
 
       if (!existing) {
@@ -219,6 +265,14 @@ router.patch('/:id', async (req, res) => {
       if (existing.status === 'COMPLETED') {
         return res.status(400).json({ error: 'Completed appointments cannot be edited' });
       }
+    }
+
+    if (serviceIds !== undefined) {
+      resolvedServiceIds = [...new Set((Array.isArray(serviceIds) ? serviceIds : []).filter(Boolean))];
+
+      if (resolvedServiceIds.length === 0) {
+        return res.status(400).json({ error: 'At least one service is required' });
+      }
 
       data.services = {
         deleteMany: {},
@@ -226,6 +280,34 @@ router.patch('/:id', async (req, res) => {
           service: { connect: { id } },
         })),
       };
+    }
+
+    if (needsConflictCheck) {
+      const finalManicuristId = manicuristId || existing.manicuristId;
+      const finalStart = date ? bogotaDateTimeToUtc(date) : new Date(existing.date);
+
+      const finalTotalMinutes = resolvedServiceIds
+        ? (
+            await req.prisma.service.findMany({
+              where: { id: { in: resolvedServiceIds } },
+              select: { durationMinutes: true },
+            })
+          ).reduce((sum, s) => sum + (s.durationMinutes || 60), 0) || 60
+        : existing.services.reduce((sum, s) => sum + (s.service.durationMinutes || 60), 0) || 60;
+
+      const finalEnd = new Date(finalStart.getTime() + finalTotalMinutes * 60000);
+
+      const conflict = await findSchedulingConflict(req.prisma, {
+        manicuristId: finalManicuristId,
+        start: finalStart,
+        end: finalEnd,
+        excludeId: req.params.id,
+      });
+      if (conflict) {
+        return res.status(400).json({
+          error: 'No se puede agendar: la manicurista ya tiene una cita programada en ese horario.',
+        });
+      }
     }
 
     const appointment = await req.prisma.appointment.update({
