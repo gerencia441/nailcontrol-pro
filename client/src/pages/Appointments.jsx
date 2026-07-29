@@ -9,6 +9,7 @@ import DateTimePicker from '../components/ui/DateTimePicker.jsx';
 import { StatusBadge, PaymentBadge } from '../components/ui/Badge.jsx';
 import { resolveManicuristColor, apptCardStyle } from '../lib/manicuristColors.js';
 import { useAuth } from '../lib/AuthContext.jsx';
+import { formatPhoneInput, isValidColombianPhone } from '../lib/phone.js';
 
 const formatCurrency = (v) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0);
@@ -453,6 +454,10 @@ export default function Appointments() {
   const handleSaveAppt = async (e) => {
     e.preventDefault();
     if (apptForm.serviceIds.length === 0) { alert('Selecciona al menos un servicio.'); return; }
+    if (!editId && apptForm.isNewClient && !isValidColombianPhone(apptForm.newClientPhone)) {
+      alert('Ingresa un teléfono válido en formato +57 XXX XXXXXXX.');
+      return;
+    }
     setSaving(true);
     try {
       const payload = { manicuristId: apptForm.manicuristId, serviceIds: apptForm.serviceIds, date: apptForm.date };
@@ -725,8 +730,9 @@ export default function Appointments() {
             <div className="space-y-3 pl-3 border-l-2 border-blush-200">
               <Input label="Nombre *" id="new-client-name" value={apptForm.newClientName} required={apptForm.isNewClient} placeholder="Nombre completo"
                 onChange={(e) => setApptForm({ ...apptForm, newClientName: e.target.value })} />
-              <Input label="Teléfono" id="new-client-phone" value={apptForm.newClientPhone} placeholder="300 000 0000"
-                onChange={(e) => setApptForm({ ...apptForm, newClientPhone: e.target.value })} />
+              <Input label="Teléfono *" id="new-client-phone" value={apptForm.newClientPhone} required={apptForm.isNewClient}
+                placeholder="+57 300 0000000"
+                onChange={(e) => setApptForm({ ...apptForm, newClientPhone: formatPhoneInput(e.target.value) })} />
             </div>
           ) : (
             <div className="relative flex flex-col gap-1.5">

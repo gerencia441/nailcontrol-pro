@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { bogotaDateTimeToUtc, bogotaDayRangeToUtc } = require('../lib/bogotaTime');
+const { normalizeColombianPhone } = require('../lib/phone');
 const googleCal = require('../lib/googleCalendar');
 const router = Router();
 
@@ -104,10 +105,21 @@ router.post('/', async (req, res) => {
     let resolvedClientId = clientId;
 
     if (newClient) {
+      if (!newClient.phone || !String(newClient.phone).trim()) {
+        return res.status(400).json({ error: 'El teléfono es obligatorio.' });
+      }
+
+      let normalizedPhone;
+      try {
+        normalizedPhone = normalizeColombianPhone(newClient.phone);
+      } catch (e) {
+        return res.status(400).json({ error: e.message });
+      }
+
       const created = await req.prisma.client.create({
         data: {
           name: newClient.name,
-          phone: newClient.phone || null,
+          phone: normalizedPhone,
           tags: '[]',
         },
       });
@@ -145,6 +157,9 @@ router.post('/', async (req, res) => {
 
     res.status(201).json(mapAppointment(appointment));
   } catch (err) {
+    if (err.code === 'P2002') {
+      return res.status(400).json({ error: 'Ya existe un cliente con este número de teléfono.' });
+    }
     res.status(500).json({ error: err.message });
   }
 });

@@ -6,6 +6,7 @@ import Modal from '../components/ui/Modal.jsx';
 import Input from '../components/ui/Input.jsx';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { resolveManicuristColor } from '../lib/manicuristColors.js';
+import { formatPhoneInput, isValidColombianPhone } from '../lib/phone.js';
 
 const EMPTY_FORM = { name: '', phone: '', birthDate: '', tags: '', technicalNotes: '' };
 
@@ -71,6 +72,10 @@ export default function Clients() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (isAdmin && !isValidColombianPhone(form.phone)) {
+      alert('Ingresa un teléfono válido en formato +57 XXX XXXXXXX.');
+      return;
+    }
     setSaving(true);
     try {
       const data = {
@@ -337,8 +342,9 @@ export default function Clients() {
           <Input label="Nombre *" id="client-name" value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="Nombre completo" />
           {isAdmin && (
-            <Input label="Teléfono" id="client-phone" value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="300 000 0000" />
+            <Input label="Teléfono *" id="client-phone" value={form.phone} required
+              onChange={(e) => setForm({ ...form, phone: formatPhoneInput(e.target.value) })}
+              placeholder="+57 300 0000000" />
           )}
           <Input label="Fecha de Nacimiento" id="client-birth" type="date" value={form.birthDate}
             onChange={(e) => setForm({ ...form, birthDate: e.target.value })} />

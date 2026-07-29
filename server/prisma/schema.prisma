@@ -11,7 +11,7 @@ model Client {
   id             String        @id @default(cuid())
   name           String
   birthDate      DateTime?
-  phone          String?
+  phone          String?       @unique
   tags           String        @db.LongText
   technicalNotes String?
   createdAt      DateTime      @default(now())
