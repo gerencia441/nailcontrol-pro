@@ -1,4 +1,4 @@
-import { formatPhoneInput } from '../../lib/phone.js';
+import { formatPhoneInput, formatNationalDisplay } from '../../lib/phone.js';
 
 // El prefijo +57 vive en un nodo aparte del input: así es físicamente
 // imposible seleccionarlo o borrarlo, sin interceptar teclas ni manipular el
@@ -6,7 +6,7 @@ import { formatPhoneInput } from '../../lib/phone.js';
 // para que isValidColombianPhone y el envío a la API funcionen sin cambios;
 // lo que se muestra es solo la parte nacional.
 function PhoneField({ value, onChange, error }) {
-  const display = String(value || '').replace(/^\+57\s*/, '');
+  const display = formatNationalDisplay(value);
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -24,9 +24,11 @@ function PhoneField({ value, onChange, error }) {
           autoComplete="tel-national"
           placeholder="300 1234567"
           value={display}
-          // formatPhoneInput emite el prefijo +57 por sí mismo y es idempotente,
-          // así que volver a prefijar la entrada es seguro.
-          onChange={(e) => onChange(formatPhoneInput(`+57 ${e.target.value}`))}
+          maxLength={11}
+          // Lo que se escribe aquí son solo los dígitos nacionales; el prefijo
+          // NO se vuelve a agregar al texto antes de formatear, porque eso hacía
+          // que su "57" se contara como parte del número.
+          onChange={(e) => onChange(formatPhoneInput(e.target.value))}
           className={`w-full pl-14 pr-3 py-3 rounded-xl border bg-white text-base text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 transition ${
             error
               ? 'border-rose-300 focus:ring-rose-200 focus:border-rose-300'
