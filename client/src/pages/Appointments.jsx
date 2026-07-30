@@ -25,16 +25,18 @@ function buildWhatsAppLink(appt, services) {
     timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true,
   });
   const svcs = services.map((s) => s.name).join(', ');
-  const dynamic =
+  // Todo el mensaje se codifica de una sola vez: el texto lleva «», tildes y
+  // saltos de línea, y codificarlo a mano por partes es propenso a errores.
+  const message =
     `Nombre: ${appt.client?.name}\n` +
     `Día: ${dia}\n` +
     `Hora: ${hora}\n` +
     `Servicio: ${svcs}\n` +
-    `Manicurista: ${appt.manicurist?.name}\n\n`;
-  const staticEncoded =
-    'Te%20estoy%20confirmando%20tu%20cita%20con%20estos%20datos%0A' +
-    'Si%20deseas%20ajustar%20algo%2C%20estoy%20encantada%20de%20ayudarte';
-  return `https://wa.me/${phone}?text=${encodeURIComponent(dynamic)}${staticEncoded}`;
+    `Manicurista: ${appt.manicurist?.name}\n\n` +
+    'Te estoy confirmando tu cita con estos datos. Por favor, responde «SÍ» a este mensaje ' +
+    'para dejar tu espacio oficialmente confirmado.\n' +
+    '(Si necesitas realizar algún cambio, me avisas por aquí).';
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
 const formatDateTime = (d) => {
@@ -544,10 +546,22 @@ export default function Appointments() {
     catch (err) { alert(err.message); }
   };
 
+  const setConfirmed = async (appt, value) => {
+    try {
+      await api.updateAppointment(appt.id, { confirmed: value });
+      // Si la cita está abierta en el modal, refleja el cambio de inmediato:
+      // completeTarget guarda una copia del momento en que se abrió, así que
+      // recargar la lista por sí solo no lo actualizaría.
+      setCompleteTarget((t) => (t && t.id === appt.id ? { ...t, confirmed: value } : t));
+      loadAppointments();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const toggleConfirmed = async (appt, e) => {
     e.stopPropagation();
-    try { await api.updateAppointment(appt.id, { confirmed: !appt.confirmed }); loadAppointments(); }
-    catch (err) { alert(err.message); }
+    await setConfirmed(appt, !appt.confirmed);
   };
 
   const selectedServices      = services.filter((s) => apptForm.serviceIds.includes(s.id));
@@ -885,6 +899,10 @@ export default function Appointments() {
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blush-600 bg-blush-50 px-2 py-0.5 rounded-full border border-blush-200 flex-shrink-0">
                     <Globe size={10} /> En línea · sin confirmar
                   </span>
+                ) : completeTarget.status === 'PENDING' ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex-shrink-0">
+                    <Clock size={10} /> Sin confirmar
+                  </span>
                 ) : null}
               </div>
               {completeTarget.manicurist?.name && (
@@ -917,6 +935,20 @@ export default function Appointments() {
                 <MessageCircle size={15} />
                 Confirmar cita por WhatsApp
               </a>
+            )}
+
+            {/* Marca la cita como confirmada por la clienta. Equivale al check
+                del listado del día; al confirmarla el estado de arriba cambia y
+                este botón desaparece. */}
+            {isAdmin && completeTarget.status === 'PENDING' && !completeTarget.confirmed && (
+              <button
+                type="button"
+                onClick={() => setConfirmed(completeTarget, true)}
+                className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 transition-colors"
+              >
+                <BadgeCheck size={15} />
+                Confirmar
+              </button>
             )}
 
             <Input label="Valor Real Pagado (COP) *" id="final-price" type="number" min="0" step="1" required
