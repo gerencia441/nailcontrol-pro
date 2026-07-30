@@ -13,6 +13,7 @@ import {
 
 const NailIcon = () => <img src="/logonailcontrol.png" alt="" className="w-5 h-5 object-contain" />;
 import { useAuth } from '../lib/AuthContext';
+import NotificationBell from './NotificationBell.jsx';
 
 const ALL_LINKS = [
   { to: '/dashboard',   label: 'Dashboard',    Icon: LayoutDashboard, adminOnly: false },
@@ -25,7 +26,7 @@ const ALL_LINKS = [
   { to: '/users',       label: 'Usuarios',      Icon: ShieldCheck,     adminOnly: true  },
 ];
 
-export default function Sidebar({ isOpen, onClose }) {
+export default function Sidebar({ isOpen, onClose, online }) {
   const { user, logout, isAdmin } = useAuth();
   const links = ALL_LINKS.filter(l => !l.adminOnly || isAdmin);
 
@@ -53,6 +54,17 @@ export default function Sidebar({ isOpen, onClose }) {
               <p className="text-[10px] text-gray-400 leading-tight font-medium tracking-wide">PRO</p>
             </div>
           </div>
+          {/* En escritorio no hay encabezado, así que la campanita vive aquí */}
+          {online && (
+            <div className="hidden lg:block">
+              <NotificationBell
+                count={online.count}
+                appointments={online.appointments}
+                permission={online.permission}
+                onRequestPermission={online.requestPermission}
+              />
+            </div>
+          )}
           <button
             type="button"
             onClick={onClose}

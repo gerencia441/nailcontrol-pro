@@ -31,6 +31,41 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Reservas hechas por las clientas desde el portal público que siguen sin
+// confirmar. Alimenta la campanita de avisos del panel.
+//
+// Debe declararse antes de cualquier ruta con parámetro para que no la capture.
+router.get('/online-pending', async (req, res) => {
+  try {
+    const where = {
+      source: 'PUBLIC',
+      status: 'PENDING',
+      confirmed: false,
+      // Solo lo que aún está por venir: una reserva vieja sin confirmar ya no
+      // requiere acción.
+      date: { gte: new Date() },
+    };
+
+    // Las administradoras ven todas; una manicurista solo las suyas.
+    if (req.user.role !== 'ADMIN') {
+      if (!req.user.manicuristId) {
+        return res.json({ count: 0, appointments: [] });
+      }
+      where.manicuristId = req.user.manicuristId;
+    }
+
+    const appointments = await req.prisma.appointment.findMany({
+      where,
+      include: INCLUDE_FULL,
+      orderBy: { date: 'asc' },
+    });
+
+    res.json({ count: appointments.length, appointments: appointments.map(mapAppointment) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/', async (req, res) => {
   try {
     const { clientId, newClient, manicuristId, serviceId, serviceIds, date } = req.body;

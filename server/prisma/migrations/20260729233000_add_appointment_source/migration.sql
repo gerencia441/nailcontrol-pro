@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `Appointment` ADD COLUMN `source` ENUM('ADMIN', 'PUBLIC') NOT NULL DEFAULT 'ADMIN';

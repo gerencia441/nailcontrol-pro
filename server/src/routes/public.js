@@ -418,6 +418,9 @@ router.post('/appointments', bookingAttemptLimiter, async (req, res) => {
             date: startUtc,
             status: 'PENDING',
             confirmed: false,
+            // Marca el origen para que el panel la señale como reservada por la
+            // clienta y aún por confirmar.
+            source: 'PUBLIC',
             services: { create: serviceIds.map((id) => ({ service: { connect: { id } } })) },
           },
           include: INCLUDE_FULL,

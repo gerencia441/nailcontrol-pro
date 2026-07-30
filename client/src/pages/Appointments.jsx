@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Plus, CheckCircle, XCircle, Clock, UserCheck, Trash2, Pencil, ChevronLeft, ChevronRight, Calendar, MessageCircle, BadgeCheck } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Plus, CheckCircle, XCircle, Clock, UserCheck, Trash2, Pencil, ChevronLeft, ChevronRight, Calendar, MessageCircle, BadgeCheck, Globe } from 'lucide-react';
 import { api } from '../lib/api.js';
 import Button from '../components/ui/Button.jsx';
 import Modal from '../components/ui/Modal.jsx';
@@ -140,6 +141,23 @@ const getApptServices  = (a) => a?.services?.length ? a.services : a?.service ? 
 const getServicesTotal = (s) => s.reduce((sum, sv) => sum + (Number(sv.basePrice) || 0), 0);
 const getServicesDur   = (s) => s.reduce((sum, sv) => sum + (Number(sv.durationMinutes) || 0), 0);
 const getServicesLabel = (s) => s.length ? s.map((sv) => sv.name).join(' + ') : 'Sin servicios';
+
+// Cita que la clienta reservó por su cuenta en el portal y que el equipo
+// todavía no ha confirmado. Al confirmarla la señalización desaparece.
+const isOnlinePending = (a) =>
+  a?.source === 'PUBLIC' && a?.status === 'PENDING' && !a?.confirmed;
+
+function OnlineBadge() {
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blush-50 text-blush-600 text-[10px] font-semibold flex-shrink-0"
+      title="Reservada en línea por la clienta · por confirmar"
+    >
+      <Globe size={9} />
+      En línea
+    </span>
+  );
+}
 
 const EMPTY_APPT    = { clientId: '', manicuristId: '', serviceIds: [], date: '', isNewClient: false, newClientName: '', newClientPhone: '' };
 const EMPTY_COMPLETE = { finalPricePaid: '', paymentMethod: 'CASH' };
@@ -326,8 +344,19 @@ function HourlyCalendar({ appointments, selectedDate, onDateChange, getApptServi
                     zIndex:          10,
                   }}
                 >
+                  {/* Reservada por la clienta desde el portal y sin confirmar.
+                      Va posicionada de forma absoluta para que se vea también en
+                      las tarjetas muy cortas, donde no cabe texto. */}
+                  {isOnlinePending(appt) && (
+                    <span
+                      className="absolute top-1 right-1 w-4 h-4 rounded-full bg-blush-500 flex items-center justify-center shadow-sm"
+                      title="Reservada en línea · por confirmar"
+                    >
+                      <Globe size={9} className="text-white" />
+                    </span>
+                  )}
                   <div className="px-1.5 py-1 h-full overflow-hidden">
-                    <p className="text-[11px] font-bold leading-tight truncate text-gray-700">
+                    <p className="text-[11px] font-bold leading-tight truncate text-gray-700 pr-4">
                       {appt.client?.name}
                     </p>
                     {!isShort && (
@@ -339,6 +368,11 @@ function HourlyCalendar({ appointments, selectedDate, onDateChange, getApptServi
                     {!isShort && appt.confirmed && appt.status === 'PENDING' && (
                       <p className="text-[9px] font-semibold mt-0.5 flex items-center gap-0.5 text-gray-600">
                         <BadgeCheck size={9} /> Confirmada
+                      </p>
+                    )}
+                    {!isShort && isOnlinePending(appt) && (
+                      <p className="text-[9px] font-semibold mt-0.5 text-blush-600 leading-tight">
+                        En línea · por confirmar
                       </p>
                     )}
                     {!isShort && appt.status === 'COMPLETED' && (
@@ -367,11 +401,31 @@ export default function Appointments() {
   const [clients,      setClients]      = useState([]);
   const [services,     setServices]     = useState([]);
   const [manicurists,  setManicurists]  = useState([]);
-  const [selectedDate, setSelectedDate] = useState(toLocalDateInput(new Date()));
+  // Permite abrir un día concreto desde otra parte de la app
+  // (ej. /appointments?date=2026-08-26 desde la campanita de avisos).
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const wanted = new URLSearchParams(window.location.search).get('date');
+    return /^\d{4}-\d{2}-\d{2}$/.test(wanted || '') ? wanted : toLocalDateInput(new Date());
+  });
   const [statusFilter, setStatusFilter] = useState('all');
   const [loading,      setLoading]      = useState(false);
   const [tab,          setTab]          = useState('calendar');
   const [calOpen,      setCalOpen]      = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // El estado inicial cubre la llegada directa a la URL; este efecto cubre el
+  // caso de ya estar en esta página y tocar otro aviso (el componente no se
+  // remonta, así que el inicializador no se vuelve a evaluar). Luego limpia el
+  // parámetro para que no quede pegado al navegar.
+  useEffect(() => {
+    const wanted = searchParams.get('date');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(wanted || '')) return;
+    setSelectedDate(wanted);
+    setTab('calendar');
+    const next = new URLSearchParams(searchParams);
+    next.delete('date');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const [apptModal,  setApptModal]  = useState(false);
   const [apptForm,   setApptForm]   = useState(EMPTY_APPT);
@@ -647,7 +701,10 @@ export default function Appointments() {
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">{appt.client?.name}</p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{appt.client?.name}</p>
+                        {isOnlinePending(appt) && <OnlineBadge />}
+                      </div>
                       <p className="text-xs text-gray-400 mt-0.5 truncate">
                         {getServicesLabel(apptSvcs)}
                         <span className="hidden sm:inline"> · {appt.manicurist?.name?.split(' ')[0]}</span>
@@ -820,11 +877,15 @@ export default function Appointments() {
               style={{ borderLeft: `4px solid ${resolveManicuristColor(completeTarget.manicurist)}` }}>
               <div className="flex items-center justify-between gap-2">
                 <p className="font-semibold text-gray-800">{completeTarget.client?.name}</p>
-                {completeTarget.confirmed && (
+                {completeTarget.confirmed ? (
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200 flex-shrink-0">
                     <BadgeCheck size={10} /> Confirmada
                   </span>
-                )}
+                ) : isOnlinePending(completeTarget) ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blush-600 bg-blush-50 px-2 py-0.5 rounded-full border border-blush-200 flex-shrink-0">
+                    <Globe size={10} /> En línea · sin confirmar
+                  </span>
+                ) : null}
               </div>
               {completeTarget.manicurist?.name && (
                 <p className="text-xs text-gray-400 flex items-center gap-1">

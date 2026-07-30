@@ -2,13 +2,19 @@ import { useState } from 'react';
 import { Menu } from 'lucide-react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar.jsx';
+import NotificationBell from './NotificationBell.jsx';
+import { useOnlineBookings } from '../lib/useOnlineBookings.js';
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // El sondeo vive aquí, una sola vez, y se comparte con las dos campanitas
+  // (la del encabezado móvil y la de la barra lateral en escritorio).
+  const online = useOnlineBookings();
+
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} online={online} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Mobile top bar */}
@@ -24,7 +30,12 @@ export default function Layout() {
             <img src="/logonailcontrol.png" alt="NailControl" className="w-7 h-7 object-contain" />
             <span className="text-sm font-semibold text-gray-800">NailControl Pro</span>
           </div>
-          <div className="w-9" />
+          <NotificationBell
+            count={online.count}
+            appointments={online.appointments}
+            permission={online.permission}
+            onRequestPermission={online.requestPermission}
+          />
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
