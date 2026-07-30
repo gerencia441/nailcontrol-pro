@@ -12,6 +12,7 @@ const { normalizeColombianPhone } = require('../lib/phone');
 const { sumServiceMinutes, overlaps, CONFLICT_WINDOW_MS } = require('../lib/scheduling');
 const { INCLUDE_FULL, mapAppointment } = require('../lib/appointmentShape');
 const { getBookingConfig } = require('../lib/bookingConfig');
+const { candidateWhere } = require('../lib/manicuristServices');
 const push = require('../lib/push');
 const { createRateLimiter, createCounter, clientIp } = require('../lib/rateLimit');
 const googleCal = require('../lib/googleCalendar');
@@ -148,11 +149,21 @@ router.get('/catalog', readLimiter, async (req, res) => {
       // Proyección explícita: nunca exponer commissionPercentage ni el
       // teléfono personal de las manicuristas.
       req.prisma.manicurist.findMany({
-        select: { id: true, name: true, color: true },
+        select: { id: true, name: true, color: true, services: { select: { serviceId: true } } },
         orderBy: { name: 'asc' },
       }),
     ]);
-    res.json({ services, manicurists });
+    res.json({
+      services,
+      // `serviceIds` permite al portal ocultar de una vez a quien no presta lo
+      // que la clienta eligió. Vacío = presta todos.
+      manicurists: manicurists.map((m) => ({
+        id: m.id,
+        name: m.name,
+        color: m.color,
+        serviceIds: m.services.map((s) => s.serviceId),
+      })),
+    });
   } catch (err) {
     console.error('public/catalog error', err.message);
     fail(res, 500, 'SERVER_ERROR', 'No pudimos cargar los servicios. Intenta de nuevo.');
@@ -183,17 +194,22 @@ router.get('/availability', readLimiter, async (req, res) => {
     }
     const totalDurationMinutes = sumServiceMinutes(services);
 
+    // Solo son candidatas las que prestan TODOS los servicios elegidos.
     const wantsAny = !manicuristId || manicuristId === 'any';
     const candidates = await req.prisma.manicurist.findMany({
-      where: wantsAny ? {} : { id: String(manicuristId) },
+      where: candidateWhere({ manicuristId, serviceIds }),
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
     });
 
     if (!wantsAny && candidates.length === 0) {
-      return fail(res, 404, 'MANICURIST_NOT_FOUND', 'La manicurista seleccionada no está disponible.');
+      return fail(
+        res,
+        404,
+        'MANICURIST_NOT_FOUND',
+        'La manicurista seleccionada no presta alguno de los servicios elegidos.'
+      );
     }
-
     const base = {
       date,
       timezone: TIMEZONE,
@@ -205,8 +221,10 @@ router.get('/availability', readLimiter, async (req, res) => {
     if (windowReason) {
       return res.json({ ...base, closed: true, reason: windowReason, slots: [] });
     }
+    // Nadie presta esa combinación de servicios (o no hay manicuristas dadas de
+    // alta). No es un problema del día elegido, así que lleva su propio motivo.
     if (candidates.length === 0) {
-      return res.json({ ...base, closed: true, reason: 'CLOSED_DAY', slots: [] });
+      return res.json({ ...base, closed: true, reason: 'NO_PROVIDER', slots: [] });
     }
 
     const latestStart = cfg.closeMinutes - totalDurationMinutes;
@@ -315,9 +333,11 @@ router.post('/appointments', bookingAttemptLimiter, async (req, res) => {
       return fail(res, 400, 'TOO_SOON', 'Necesitamos algo más de anticipación. Elige un horario más adelante.');
     }
 
+    // Se revalida en el servidor que la manicurista preste TODOS los servicios
+    // pedidos: el portal ya filtra, pero el cliente no es confiable.
     const wantsAny = !manicuristId || manicuristId === 'any';
     const candidates = await req.prisma.manicurist.findMany({
-      where: wantsAny ? {} : { id: String(manicuristId) },
+      where: candidateWhere({ manicuristId, serviceIds }),
       select: { id: true, name: true, color: true },
       orderBy: { name: 'asc' },
     });
@@ -326,7 +346,9 @@ router.post('/appointments', bookingAttemptLimiter, async (req, res) => {
         res,
         wantsAny ? 400 : 404,
         'MANICURIST_NOT_FOUND',
-        'La manicurista seleccionada no está disponible.'
+        wantsAny
+          ? 'Por ahora no tenemos quien preste esa combinación de servicios. Elige otros servicios.'
+          : 'La manicurista seleccionada no presta alguno de los servicios elegidos.'
       );
     }
 

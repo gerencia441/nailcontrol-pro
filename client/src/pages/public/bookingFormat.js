@@ -52,6 +52,8 @@ export const SLOT_REASON_COPY = {
   TOO_FAR: 'Esa fecha está muy lejos. Elige una más cercana.',
   DURATION_TOO_LONG:
     'Los servicios que elegiste no alcanzan a realizarse en una sola jornada. Quita alguno para continuar.',
+  NO_PROVIDER:
+    'Por ahora nadie presta esa combinación de servicios. Vuelve atrás y ajusta tu selección.',
 };
 
 export const WEEKDAY_INITIALS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];

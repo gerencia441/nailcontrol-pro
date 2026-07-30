@@ -1,4 +1,4 @@
-import { Check, Sparkles } from 'lucide-react';
+import { Check, Sparkles, AlertCircle } from 'lucide-react';
 import { resolveManicuristColor } from '../../lib/manicuristColors.js';
 
 function initials(name = '') {
@@ -44,6 +44,24 @@ export default function StepManicurist({ manicurists, value, onChange, loading }
         {Array.from({ length: 3 }, (_, i) => (
           <div key={i} className="h-[72px] rounded-2xl bg-white border border-gray-100 animate-pulse" />
         ))}
+      </div>
+    );
+  }
+
+  // `manicurists` ya llega filtrado a quienes prestan los servicios elegidos.
+  // Si no queda nadie, ofrecer "cualquiera disponible" sería mentir.
+  if (manicurists.length === 0) {
+    return (
+      <div className="rounded-2xl bg-amber-50 border border-amber-100 p-4 flex items-start gap-2.5">
+        <AlertCircle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-semibold text-amber-900">
+            Nadie presta esa combinación de servicios
+          </p>
+          <p className="text-sm text-amber-800 mt-1">
+            Vuelve atrás y ajusta tu selección, o escríbenos y te ayudamos a organizarla.
+          </p>
+        </div>
       </div>
     );
   }

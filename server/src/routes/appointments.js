@@ -3,8 +3,24 @@ const { bogotaDateTimeToUtc, bogotaDayRangeToUtc } = require('../lib/bogotaTime'
 const { normalizeColombianPhone } = require('../lib/phone');
 const { findSchedulingConflict } = require('../lib/scheduling');
 const { INCLUDE_FULL, mapAppointment } = require('../lib/appointmentShape');
+const { providesAll } = require('../lib/manicuristServices');
 const googleCal = require('../lib/googleCalendar');
 const router = Router();
+
+// Devuelve un mensaje de error si la manicurista no presta todos los servicios
+// pedidos, o null si la combinación es válida. La UI ya filtra el desplegable;
+// esto cierra la puerta a peticiones directas y a datos que cambiaron entre
+// medias (p. ej. se le quitó un servicio después de abrir el formulario).
+async function serviceMismatchError(prisma, manicuristId, serviceIds) {
+  if (!manicuristId || !serviceIds || serviceIds.length === 0) return null;
+  const manicurist = await prisma.manicurist.findUnique({
+    where: { id: manicuristId },
+    select: { name: true, services: { select: { serviceId: true } } },
+  });
+  if (!manicurist) return 'La manicurista seleccionada no existe.';
+  if (providesAll(manicurist, serviceIds)) return null;
+  return `${manicurist.name} no presta alguno de los servicios seleccionados.`;
+}
 
 router.get('/', async (req, res) => {
   try {
@@ -75,6 +91,11 @@ router.post('/', async (req, res) => {
 
     if (resolvedServiceIds.length === 0) {
       return res.status(400).json({ error: 'At least one service is required' });
+    }
+
+    const mismatch = await serviceMismatchError(req.prisma, manicuristId, resolvedServiceIds);
+    if (mismatch) {
+      return res.status(400).json({ error: mismatch });
     }
 
     const services = await req.prisma.service.findMany({
@@ -289,6 +310,17 @@ router.patch('/:id', async (req, res) => {
 
     if (needsConflictCheck) {
       const finalManicuristId = manicuristId || existing.manicuristId;
+
+      // Solo cuando cambia la manicurista o los servicios: mover una cita de
+      // hora no debe bloquearse por una combinación que ya estaba guardada.
+      if (manicuristId !== undefined || serviceIds !== undefined) {
+        const finalServiceIds = resolvedServiceIds || existing.services.map((s) => s.serviceId);
+        const mismatch = await serviceMismatchError(req.prisma, finalManicuristId, finalServiceIds);
+        if (mismatch) {
+          return res.status(400).json({ error: mismatch });
+        }
+      }
+
       const finalStart = date ? bogotaDateTimeToUtc(date) : new Date(existing.date);
 
       const finalTotalMinutes = resolvedServiceIds

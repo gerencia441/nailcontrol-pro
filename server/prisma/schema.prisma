@@ -27,6 +27,7 @@ model Service {
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   appointments AppointmentService[]
+  manicurists  ManicuristService[]
 }
 
 model Manicurist {
@@ -38,6 +39,20 @@ model Manicurist {
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
   appointments         Appointment[]
+  services             ManicuristService[]
+}
+
+// Servicios que presta cada manicurista. Un conjunto VACÍO significa "presta
+// todos los servicios" (ver server/src/lib/manicuristServices.js): así las
+// fichas existentes siguen funcionando sin necesidad de un backfill.
+model ManicuristService {
+  manicuristId String
+  serviceId    String
+  manicurist   Manicurist @relation(fields: [manicuristId], references: [id], onDelete: Cascade)
+  service      Service    @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@id([manicuristId, serviceId])
+  @@index([serviceId], map: "ManicuristService_serviceId_fkey")
 }
 
 model Appointment {

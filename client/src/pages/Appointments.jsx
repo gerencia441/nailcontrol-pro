@@ -9,6 +9,7 @@ import Select from '../components/ui/Select.jsx';
 import DateTimePicker from '../components/ui/DateTimePicker.jsx';
 import { StatusBadge, PaymentBadge } from '../components/ui/Badge.jsx';
 import { resolveManicuristColor, apptCardStyle } from '../lib/manicuristColors.js';
+import { filterByServices, providesAll } from '../lib/manicuristServices.js';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { formatPhoneInput, isValidColombianPhone } from '../lib/phone.js';
 
@@ -532,12 +533,17 @@ export default function Appointments() {
   };
 
   const toggleService = (id) => {
-    setApptForm((cur) => ({
-      ...cur,
-      serviceIds: cur.serviceIds.includes(id)
+    setApptForm((cur) => {
+      const serviceIds = cur.serviceIds.includes(id)
         ? cur.serviceIds.filter((s) => s !== id)
-        : [...cur.serviceIds, id],
-    }));
+        : [...cur.serviceIds, id];
+      // Si la manicurista ya elegida no presta la nueva combinación, se
+      // deselecciona en vez de dejar el desplegable mostrando a alguien que ya
+      // no es una opción válida.
+      const chosen = manicurists.find((m) => m.id === cur.manicuristId);
+      const stillValid = !chosen || providesAll(chosen, serviceIds);
+      return { ...cur, serviceIds, manicuristId: stillValid ? cur.manicuristId : '' };
+    });
   };
 
   const handleDeleteAppt = async (id) => {
@@ -567,6 +573,10 @@ export default function Appointments() {
   const selectedServices      = services.filter((s) => apptForm.serviceIds.includes(s.id));
   const selectedServicesTotal = getServicesTotal(selectedServices);
   const selectedServicesDur   = getServicesDur(selectedServices);
+
+  // Solo las manicuristas que prestan TODOS los servicios marcados.
+  const eligibleManicurists = filterByServices(manicurists, apptForm.serviceIds);
+  const hiddenManicurists   = manicurists.length - eligibleManicurists.length;
 
   return (
     <div className="space-y-5">
@@ -870,11 +880,32 @@ export default function Appointments() {
             </div>
           </div>
 
-          <Select label="Manicurista *" id="appt-manicurist" value={apptForm.manicuristId} required
-            onChange={(e) => setApptForm({ ...apptForm, manicuristId: e.target.value })}>
-            <option value="">Seleccionar manicurista...</option>
-            {manicurists.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.commissionPercentage}%)</option>)}
-          </Select>
+          <div className="flex flex-col gap-1">
+            <Select label="Manicurista *" id="appt-manicurist" value={apptForm.manicuristId} required
+              onChange={(e) => setApptForm({ ...apptForm, manicuristId: e.target.value })}>
+              <option value="">
+                {apptForm.serviceIds.length === 0
+                  ? 'Selecciona primero los servicios...'
+                  : eligibleManicurists.length === 0
+                    ? 'Ninguna presta estos servicios'
+                    : 'Seleccionar manicurista...'}
+              </option>
+              {eligibleManicurists.map((m) => (
+                <option key={m.id} value={m.id}>{m.name} ({m.commissionPercentage}%)</option>
+              ))}
+            </Select>
+            {eligibleManicurists.length === 0 && apptForm.serviceIds.length > 0 ? (
+              <p className="text-xs text-red-500">
+                Ninguna manicurista presta esa combinación de servicios. Ajusta los servicios o
+                asigna el servicio a alguien en la sección Manicuristas.
+              </p>
+            ) : hiddenManicurists > 0 ? (
+              <p className="text-xs text-gray-400">
+                {hiddenManicurists === 1 ? 'Se ocultó 1 manicurista' : `Se ocultaron ${hiddenManicurists} manicuristas`} que
+                no prestan los servicios seleccionados.
+              </p>
+            ) : null}
+          </div>
 
           <div className="flex gap-2 pt-2 justify-end">
             <Button type="button" variant="ghost" onClick={() => setApptModal(false)}>Cancelar</Button>

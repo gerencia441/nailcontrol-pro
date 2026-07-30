@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronLeft, AlertCircle, LayoutDashboard } from 'lucide-react';
 import { publicApi } from '../../lib/publicApi.js';
 import { isValidColombianPhone } from '../../lib/phone.js';
+import { filterByServices, providesAll } from '../../lib/manicuristServices.js';
 import { useAuth } from '../../lib/AuthContext.jsx';
 import StepProgress from './StepProgress.jsx';
 import StepServices from './StepServices.jsx';
@@ -62,6 +63,10 @@ export default function BookingPortal() {
   const selectedServices = catalog.services.filter((s) => form.serviceIds.includes(s.id));
   const totalDuration = selectedServices.reduce((sum, s) => sum + (s.durationMinutes || 0), 0);
 
+  // Solo se ofrecen las manicuristas que prestan TODOS los servicios elegidos:
+  // la cita la atiende una sola persona de principio a fin.
+  const eligibleManicurists = filterByServices(catalog.manicurists, form.serviceIds);
+
   const loadAvailability = useCallback(
     async (date, serviceIds, manicuristId) => {
       if (!date || serviceIds.length === 0) {
@@ -93,15 +98,23 @@ export default function BookingPortal() {
   const scrollTop = () => topRef.current?.scrollIntoView({ block: 'start' });
 
   const toggleService = (id) => {
-    setForm((f) => ({
-      ...f,
-      serviceIds: f.serviceIds.includes(id)
+    setForm((f) => {
+      const serviceIds = f.serviceIds.includes(id)
         ? f.serviceIds.filter((x) => x !== id)
-        : [...f.serviceIds, id],
-      // Cambiar los servicios cambia la duración, así que el horario elegido
-      // puede dejar de ser válido.
-      time: '',
-    }));
+        : [...f.serviceIds, id];
+      // Si la manicurista ya elegida no presta la nueva combinación, se vuelve
+      // a "cualquiera disponible" en lugar de arrastrar una selección inválida.
+      const chosen = catalog.manicurists.find((m) => m.id === f.manicuristId);
+      const keepManicurist = !chosen || providesAll(chosen, serviceIds);
+      return {
+        ...f,
+        serviceIds,
+        manicuristId: keepManicurist ? f.manicuristId : 'any',
+        // Cambiar los servicios cambia la duración, así que el horario elegido
+        // puede dejar de ser válido.
+        time: '',
+      };
+    });
   };
 
   const canContinue = () => {
@@ -109,7 +122,8 @@ export default function BookingPortal() {
       case 1:
         return form.serviceIds.length > 0;
       case 2:
-        return Boolean(form.manicuristId);
+        // Sin nadie que preste los servicios elegidos no hay nada que continuar.
+        return eligibleManicurists.length > 0 && Boolean(form.manicuristId);
       case 3:
         return Boolean(form.date && form.time);
       case 4:
@@ -234,7 +248,7 @@ export default function BookingPortal() {
 
               {form.step === 2 && (
                 <StepManicurist
-                  manicurists={catalog.manicurists}
+                  manicurists={eligibleManicurists}
                   value={form.manicuristId}
                   onChange={(id) => setForm((f) => ({ ...f, manicuristId: id, time: '' }))}
                   loading={false}
