@@ -67,6 +67,12 @@ export const api = {
   deleteAppointment: (id) => request('DELETE', `/appointments/${id}`),
   getOnlinePendingAppointments: () => request('GET', '/appointments/online-pending'),
 
+  // Web Push
+  getPushPublicKey: () => request('GET', '/push/public-key'),
+  subscribeToPush: (subscription) => request('POST', '/push/subscribe', { subscription }),
+  unsubscribeFromPush: (endpoint) => request('POST', '/push/unsubscribe', { endpoint }),
+  sendTestPush: () => request('POST', '/push/test'),
+
   // Finances
   getFinances: (params) =>
     request('GET', `/finances?${new URLSearchParams(params || {})}`),

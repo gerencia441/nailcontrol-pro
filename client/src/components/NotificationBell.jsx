@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, BellRing, Globe, X, CalendarDays } from 'lucide-react';
+import { Bell, BellRing, Globe, X, CalendarDays, Send } from 'lucide-react';
+import { api } from '../lib/api.js';
 
 function formatWhen(dateStr) {
   const d = new Date(dateStr);
@@ -23,8 +24,20 @@ function formatWhen(dateStr) {
 
 export default function NotificationBell({ count, appointments, permission, onRequestPermission }) {
   const [open, setOpen] = useState(false);
+  const [testState, setTestState] = useState(null); // null | 'sending' | 'sent' | 'none' | 'error'
   const wrapRef = useRef(null);
   const navigate = useNavigate();
+
+  const sendTest = async () => {
+    setTestState('sending');
+    try {
+      const res = await api.sendTestPush();
+      setTestState(res?.sent > 0 ? 'sent' : 'none');
+    } catch {
+      setTestState('error');
+    }
+    setTimeout(() => setTestState(null), 6000);
+  };
 
   useEffect(() => {
     if (!open) return undefined;
@@ -87,9 +100,41 @@ export default function NotificationBell({ count, appointments, permission, onRe
             >
               <p className="text-xs font-semibold text-blush-700">Activar notificaciones</p>
               <p className="text-[11px] text-gray-500 mt-0.5">
-                Recibe un aviso en este dispositivo cuando una clienta reserve.
+                Recibe un aviso en este dispositivo, incluso con la app cerrada.
               </p>
             </button>
+          )}
+
+          {permission === 'denied' && (
+            <div className="px-4 py-3 bg-amber-50 border-b border-amber-100">
+              <p className="text-xs font-semibold text-amber-800">Notificaciones bloqueadas</p>
+              <p className="text-[11px] text-amber-700 mt-0.5">
+                Actívalas desde los ajustes del navegador para este sitio.
+              </p>
+            </div>
+          )}
+
+          {permission === 'granted' && (
+            <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between gap-2">
+              <p className="text-[11px] text-gray-500">
+                {testState === 'sent'
+                  ? '¡Enviado! Debe llegarte en un momento.'
+                  : testState === 'none'
+                    ? 'Este dispositivo aún no está registrado. Recarga la app.'
+                    : testState === 'error'
+                      ? 'No se pudo enviar la prueba.'
+                      : 'Notificaciones activas en este dispositivo.'}
+              </p>
+              <button
+                type="button"
+                onClick={sendTest}
+                disabled={testState === 'sending'}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-blush-600 hover:text-blush-700 disabled:opacity-50 flex-shrink-0"
+              >
+                <Send size={11} />
+                {testState === 'sending' ? 'Enviando…' : 'Probar'}
+              </button>
+            </div>
           )}
 
           <div className="max-h-[60vh] overflow-y-auto overscroll-contain">

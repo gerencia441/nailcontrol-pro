@@ -16,6 +16,7 @@ const settingsRouter = require('./routes/settings');
 const authRouter = require('./routes/auth');
 const googleRouter = require('./routes/integrations/google');
 const publicRouter = require('./routes/public');
+const pushRouter = require('./routes/push');
 const requireAuth = require('./middleware/auth');
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -63,6 +64,7 @@ app.use('/api/finances', requireAuth, financesRouter);
 app.use('/api/dashboard', requireAuth, dashboardRouter);
 app.use('/api/users', requireAuth, usersRouter);
 app.use('/api/settings', requireAuth, settingsRouter);
+app.use('/api/push', requireAuth, pushRouter);
 
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'API route not found' });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { useAuth } from './AuthContext.jsx';
+import { subscribeToPush, isPushSupported } from './push.js';
 
 const POLL_MS = 60_000;
 const SEEN_KEY = 'onlineBookingsSeen';
@@ -31,6 +32,33 @@ function canNotify() {
   return typeof window !== 'undefined' && 'Notification' in window;
 }
 
+// En Chrome para Android (y en casi todos los navegadores móviles) el
+// constructor `new Notification()` lanza "Illegal constructor": es una
+// limitación de la plataforma, no un error del navegador. Ahí la notificación
+// debe mostrarse desde el service worker. En escritorio el constructor sí sirve
+// y se usa como respaldo.
+//
+// Nunca lanza: mostrar un aviso no debe romper el sondeo.
+async function showSystemNotification(title, options) {
+  if (!canNotify() || Notification.permission !== 'granted') return;
+
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    if (reg?.showNotification) {
+      await reg.showNotification(title, options);
+      return;
+    }
+  } catch {
+    /* sigue al respaldo */
+  }
+
+  try {
+    new Notification(title, options);
+  } catch {
+    /* navegador sin soporte: la campanita dentro de la app ya avisó */
+  }
+}
+
 function formatWhen(dateStr) {
   return new Date(dateStr).toLocaleString('es-CO', {
     timeZone: 'America/Bogota',
@@ -52,20 +80,18 @@ export function useOnlineBookings() {
   const firstLoadRef = useRef(true);
 
   const notify = useCallback((items) => {
-    if (!canNotify() || Notification.permission !== 'granted') return;
-
     // Con varias a la vez se manda un solo aviso agrupado, no uno por cita.
     if (items.length === 1) {
       const appt = items[0];
       const services = (appt.services || []).map((s) => s.name.trim()).join(' + ');
-      new Notification('Nueva reserva en línea', {
+      showSystemNotification('Nueva reserva en línea', {
         body: `${appt.client?.name?.trim() || 'Una clienta'} · ${formatWhen(appt.date)}${services ? `\n${services}` : ''}`,
         icon: '/logonailcontrol.png',
         badge: '/logonailcontrol.png',
         tag: `online-booking-${appt.id}`,
       });
     } else {
-      new Notification(`${items.length} nuevas reservas en línea`, {
+      showSystemNotification(`${items.length} nuevas reservas en línea`, {
         body: 'Entra a Citas para revisarlas y confirmarlas.',
         icon: '/logonailcontrol.png',
         badge: '/logonailcontrol.png',
@@ -81,20 +107,22 @@ export function useOnlineBookings() {
       setAppointments(list);
 
       const unseen = list.filter((a) => !seenRef.current.includes(a.id));
+      const isFirstLoad = firstLoadRef.current;
 
-      // En la primera carga de la sesión no se notifica lo que ya estaba
-      // pendiente de antes: solo se marca como visto para avisar de lo que
-      // llegue de aquí en adelante.
-      if (!firstLoadRef.current && unseen.length > 0) {
-        notify(unseen);
-      }
-
+      // Se marca como visto ANTES de intentar notificar. Si mostrar el aviso
+      // falla, no debe quedar reintentando (y fallando) en cada ciclo.
       if (unseen.length > 0) {
         seenRef.current = [...seenRef.current, ...unseen.map((a) => a.id)];
         writeSeen(seenRef.current);
       }
-
       firstLoadRef.current = false;
+
+      // En la primera carga de la sesión no se notifica lo que ya estaba
+      // pendiente de antes: solo se marca como visto para avisar de lo que
+      // llegue de aquí en adelante.
+      if (!isFirstLoad && unseen.length > 0) {
+        notify(unseen);
+      }
     } catch {
       // Silencioso: un fallo de red no debe interrumpir el trabajo en el panel.
       // El cliente api ya maneja el 401 global.
@@ -120,10 +148,21 @@ export function useOnlineBookings() {
     };
   }, [user, load]);
 
+  // Si el permiso ya estaba concedido, se (re)registra el dispositivo para push
+  // en cada arranque de sesión: así se recupera la suscripción tras reinstalar
+  // la app, limpiar el navegador o rotar las llaves VAPID.
+  useEffect(() => {
+    if (!user || !isPushSupported() || Notification.permission !== 'granted') return;
+    subscribeToPush();
+  }, [user]);
+
   const requestPermission = useCallback(async () => {
     if (!canNotify()) return 'unsupported';
     const result = await Notification.requestPermission();
     setPermission(result);
+    // Conceder el permiso no suscribe por sí solo: hay que registrar el
+    // dispositivo en el servidor para que pueda recibir el push.
+    if (result === 'granted') await subscribeToPush();
     return result;
   }, []);
 
@@ -132,6 +171,7 @@ export function useOnlineBookings() {
     count: appointments.length,
     permission,
     requestPermission,
+    pushSupported: isPushSupported(),
     refresh: load,
   };
 }

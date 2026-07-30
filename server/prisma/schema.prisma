@@ -94,6 +94,24 @@ model User {
   manicuristId       String?   @unique
   googleRefreshToken String?
   googleCalendarId   String?
+
+  pushSubscriptions  PushSubscription[]
+}
+
+// Un registro por dispositivo/navegador suscrito a notificaciones push.
+// `endpoint` es VarChar y no Text porque MySQL no admite índice único sobre
+// TEXT sin longitud de prefijo.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique @db.VarChar(500)
+  p256dh    String   @db.VarChar(255)
+  auth      String   @db.VarChar(255)
+  userAgent String?  @db.VarChar(255)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 enum AppointmentStatus {

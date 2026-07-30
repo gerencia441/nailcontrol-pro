@@ -12,6 +12,7 @@ const { normalizeColombianPhone } = require('../lib/phone');
 const { sumServiceMinutes, overlaps, CONFLICT_WINDOW_MS } = require('../lib/scheduling');
 const { INCLUDE_FULL, mapAppointment } = require('../lib/appointmentShape');
 const { getBookingConfig } = require('../lib/bookingConfig');
+const push = require('../lib/push');
 const { createRateLimiter, createCounter, clientIp } = require('../lib/rateLimit');
 const googleCal = require('../lib/googleCalendar');
 
@@ -43,6 +44,21 @@ const consumeBookingWrite = createCounter({ windowMs: 60 * 60_000, max: 6 });
 
 function fail(res, status, code, error) {
   return res.status(status).json({ error, code });
+}
+
+// "2026-08-26" + "09:00" -> "mié 26 ago, 9:00 am", para el cuerpo del aviso.
+function formatBogotaLabel(dateStr, time) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const day = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('es-CO', {
+    timeZone: 'UTC',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+  const [hh, mm] = time.split(':').map(Number);
+  const period = hh >= 12 ? 'pm' : 'am';
+  const hour12 = hh % 12 === 0 ? 12 : hh % 12;
+  return `${day}, ${hour12}:${String(mm).padStart(2, '0')} ${period}`;
 }
 
 function parseServiceIds(raw) {
@@ -441,6 +457,22 @@ router.post('/appointments', bookingAttemptLimiter, async (req, res) => {
       }
     } catch (e) {
       console.error('Public booking Google sync error', e.message);
+    }
+
+    // Aviso push al equipo. También fuera de la transacción y sin bloquear la
+    // respuesta: si el push falla, la reserva ya quedó guardada y la campanita
+    // dentro de la app la mostrará igual.
+    try {
+      const recipients = await push.findBookingRecipients(req.prisma, chosen.id);
+      const serviceNames = services.map((s) => s.name.trim()).join(' + ');
+      await push.sendToUsers(req.prisma, recipients, {
+        title: 'Nueva reserva en línea',
+        body: `${name} · ${formatBogotaLabel(date, time)}\n${serviceNames} · con ${chosen.name.trim()}`,
+        url: `/appointments?date=${date}`,
+        tag: `online-booking-${created.id}`,
+      });
+    } catch (e) {
+      console.error('Public booking push error', e.message);
     }
 
     // DTO propio: nunca devolver mapAppointment() tal cual, que incluye

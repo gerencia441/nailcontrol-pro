@@ -10,6 +10,15 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      workbox: {
+        // Inyecta los manejadores de Web Push en el service worker generado.
+        // Sin esto no hay forma de recibir avisos con la app cerrada o en
+        // segundo plano.
+        importScripts: ['push-sw.js'],
+        // El portal público y la API nunca deben resolverse con el shell de la
+        // aplicación desde la caché.
+        navigateFallbackDenylist: [/^\/api\//],
+      },
       manifest: {
         name: 'NailControl Pro',
         short_name: 'NailControl',
