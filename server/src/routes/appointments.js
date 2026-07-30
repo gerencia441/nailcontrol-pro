@@ -1,55 +1,10 @@
 const { Router } = require('express');
 const { bogotaDateTimeToUtc, bogotaDayRangeToUtc } = require('../lib/bogotaTime');
 const { normalizeColombianPhone } = require('../lib/phone');
+const { findSchedulingConflict } = require('../lib/scheduling');
+const { INCLUDE_FULL, mapAppointment } = require('../lib/appointmentShape');
 const googleCal = require('../lib/googleCalendar');
 const router = Router();
-
-const INCLUDE_FULL = {
-  client: true,
-  manicurist: true,
-  services: {
-    include: { service: true },
-  },
-};
-
-function mapAppointment(appointment) {
-  const services = appointment.services?.map((item) => item.service) || [];
-  return {
-    ...appointment,
-    services,
-    service: services[0] || null,
-  };
-}
-
-async function findSchedulingConflict(prisma, { manicuristId, start, end, excludeId }) {
-  const WINDOW_MS = 12 * 60 * 60 * 1000; // padding generoso para no perder solapes reales
-  const candidates = await prisma.appointment.findMany({
-    where: {
-      manicuristId,
-      status: { not: 'CANCELLED' },
-      ...(excludeId && { id: { not: excludeId } }),
-      date: {
-        gte: new Date(start.getTime() - WINDOW_MS),
-        lt: new Date(end.getTime() + WINDOW_MS),
-      },
-    },
-    select: {
-      id: true,
-      date: true,
-      services: { select: { service: { select: { durationMinutes: true } } } },
-    },
-  });
-
-  return (
-    candidates.find((appt) => {
-      const totalMinutes =
-        appt.services.reduce((sum, s) => sum + (s.service?.durationMinutes || 60), 0) || 60;
-      const apptStart = new Date(appt.date);
-      const apptEnd = new Date(apptStart.getTime() + totalMinutes * 60000);
-      return start < apptEnd && end > apptStart;
-    }) || null
-  );
-}
 
 router.get('/', async (req, res) => {
   try {

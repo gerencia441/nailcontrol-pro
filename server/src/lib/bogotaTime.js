@@ -59,7 +59,56 @@ function bogotaDayRangeToUtc(value) {
   return { start, end };
 }
 
+// Fecha "YYYY-MM-DD" y minutos desde medianoche del momento actual en Bogotá.
+// Se deriva del offset fijo, nunca de la zona horaria del servidor.
+function bogotaNow(reference = new Date()) {
+  const shifted = new Date(reference.getTime() - BOGOTA_UTC_OFFSET_HOURS * 3600000);
+  const pad = (n) => String(n).padStart(2, '0');
+  const dateStr = `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`;
+
+  return {
+    dateStr,
+    minutes: shifted.getUTCHours() * 60 + shifted.getUTCMinutes(),
+    weekday: shifted.getUTCDay(),
+  };
+}
+
+// Minutos de un instante UTC relativo a las 00:00 Bogotá de `dateStr`.
+// Puede ser negativo (cita de la noche anterior) o mayor a 1440.
+function bogotaMinutesFromDayStart(dateStr, utcDate) {
+  const { start } = bogotaDayRangeToUtc(dateStr);
+  return (new Date(utcDate).getTime() - start.getTime()) / 60000;
+}
+
+// Día de la semana (0 = domingo) de "YYYY-MM-DD".
+// Usa Date.UTC para que la zona horaria del servidor no lo desplace un día.
+function bogotaWeekday(dateStr) {
+  const parts = parseDateParts(dateStr);
+  if (!parts) return null;
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
+}
+
+function bogotaDaysBetween(fromStr, toStr) {
+  const a = parseDateParts(fromStr);
+  const b = parseDateParts(toStr);
+  if (!a || !b) return null;
+  const from = Date.UTC(a.year, a.month - 1, a.day);
+  const to = Date.UTC(b.year, b.month - 1, b.day);
+  return Math.round((to - from) / 86400000);
+}
+
+function minutesToHHMM(totalMinutes) {
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 module.exports = {
   bogotaDateTimeToUtc,
   bogotaDayRangeToUtc,
+  bogotaNow,
+  bogotaMinutesFromDayStart,
+  bogotaWeekday,
+  bogotaDaysBetween,
+  minutesToHHMM,
 };

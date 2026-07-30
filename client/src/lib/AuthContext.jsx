@@ -1,26 +1,26 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { api } from './api';
 
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
+// Leer la sesión guardada es síncrono, así que se hace en el inicializador del
+// estado en lugar de en un efecto. Antes esto vivía en un useEffect con un
+// `if (loading) return <div>Loading...</div>` que cortaba todo el árbol durante
+// un commit: cada visitante del portal público veía un "Loading..." sin estilos.
+function readStoredUser() {
+  try {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
-    
-    if (token && storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      }
-    }
-    setLoading(false);
-  }, []);
+    if (token && storedUser) return JSON.parse(storedUser);
+  } catch {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  }
+  return null;
+}
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(readStoredUser);
 
   const login = async (username, password) => {
     const response = await api.login({ username, password });
@@ -35,10 +35,6 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     window.location.href = '/login';
   };
-
-  if (loading) {
-    return <div>Loading...</div>; // Or a nice spinner
-  }
 
   const isAdmin = user?.role === 'ADMIN';
 

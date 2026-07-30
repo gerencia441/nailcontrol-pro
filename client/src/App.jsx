@@ -9,7 +9,9 @@ import Finances from './pages/Finances.jsx';
 import Settings from './pages/Settings.jsx';
 import Users from './pages/Users.jsx';
 import Login from './pages/Login.jsx';
+import BookingPortal from './pages/public/BookingPortal.jsx';
 import { useAuth } from './lib/AuthContext.jsx';
+import { isBookingHost } from './lib/publicHost.js';
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
@@ -25,18 +27,37 @@ const AdminRoute = ({ children }) => {
 };
 
 export default function App() {
+  // En el subdominio de reservas la raíz muestra el portal público; en el
+  // dominio administrativo mantiene el comportamiento de siempre.
+  const portal = isBookingHost();
+
   return (
     <Routes>
+      {/* Rutas públicas: siempre fuera de ProtectedRoute y de Layout */}
+      <Route path="/reservar" element={<BookingPortal />} />
       <Route path="/login" element={<Login />} />
+
       <Route
         path="/"
+        element={
+          portal ? (
+            <BookingPortal />
+          ) : (
+            <ProtectedRoute>
+              <Navigate to="/dashboard" replace />
+            </ProtectedRoute>
+          )
+        }
+      />
+
+      {/* Ruta de layout sin path: los hijos conservan sus rutas relativas */}
+      <Route
         element={
           <ProtectedRoute>
             <Layout />
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="clients" element={<Clients />} />
         <Route path="services" element={<AdminRoute><Services /></AdminRoute>} />
@@ -46,6 +67,9 @@ export default function App() {
         <Route path="settings" element={<AdminRoute><Settings /></AdminRoute>} />
         <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
       </Route>
+
+      {/* Antes una ruta desconocida renderizaba una página en blanco */}
+      <Route path="*" element={<Navigate to={portal ? '/reservar' : '/dashboard'} replace />} />
     </Routes>
   );
 }

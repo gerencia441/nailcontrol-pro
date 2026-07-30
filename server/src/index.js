@@ -15,6 +15,7 @@ const usersRouter = require('./routes/users');
 const settingsRouter = require('./routes/settings');
 const authRouter = require('./routes/auth');
 const googleRouter = require('./routes/integrations/google');
+const publicRouter = require('./routes/public');
 const requireAuth = require('./middleware/auth');
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -29,6 +30,11 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 const IS_PROD = process.env.NODE_ENV === 'production';
 const distPath = path.join(__dirname, '../../client/dist');
 const hasDist = fs.existsSync(distPath);
+
+// Necesario para que req.ip sea el del visitante y no el del proxy de Railway;
+// sin esto el limitador de tasa del portal público agruparía a todo el mundo
+// en un mismo cubo.
+app.set('trust proxy', 1);
 
 app.use(express.json());
 
@@ -45,6 +51,9 @@ app.use('/api/auth', authRouter);
 
 // Google routes: setup + callback don't need auth (one-time token retrieval only)
 app.use('/api/integrations/google', googleRouter);
+
+// Portal público de reservas (citas.florcatalan.com) — sin autenticación.
+app.use('/api/public', publicRouter);
 
 app.use('/api/clients', requireAuth, clientsRouter);
 app.use('/api/services', requireAuth, servicesRouter);
