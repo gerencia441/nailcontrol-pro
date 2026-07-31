@@ -11,7 +11,7 @@ const {
 const { normalizeColombianPhone } = require('../lib/phone');
 const { sumServiceMinutes, overlaps, CONFLICT_WINDOW_MS } = require('../lib/scheduling');
 const { INCLUDE_FULL, mapAppointment } = require('../lib/appointmentShape');
-const { getBookingConfig } = require('../lib/bookingConfig');
+const { getBookingConfig, hitsBreak, longestOpenStretch } = require('../lib/bookingConfig');
 const { candidateWhere } = require('../lib/manicuristServices');
 const push = require('../lib/push');
 const { createRateLimiter, createCounter, clientIp } = require('../lib/rateLimit');
@@ -123,6 +123,8 @@ router.get('/config', readLimiter, async (req, res) => {
       timezone: TIMEZONE,
       openTime: cfg.openTime,
       closeTime: cfg.closeTime,
+      breakStart: cfg.breakStart,
+      breakEnd: cfg.breakEnd,
       slotMinutes: cfg.slotMinutes,
       minNoticeMinutes: cfg.minNoticeMinutes,
       maxAdvanceDays: cfg.maxAdvanceDays,
@@ -228,7 +230,9 @@ router.get('/availability', readLimiter, async (req, res) => {
     }
 
     const latestStart = cfg.closeMinutes - totalDurationMinutes;
-    if (latestStart < cfg.openMinutes) {
+    // Se compara contra el tramo continuo más largo, no contra la jornada
+    // completa: con el almuerzo de por medio la jornada ya viene partida.
+    if (totalDurationMinutes > longestOpenStretch(cfg)) {
       return res.json({ ...base, closed: true, reason: 'DURATION_TOO_LONG', slots: [] });
     }
 
@@ -246,7 +250,11 @@ router.get('/availability', readLimiter, async (req, res) => {
     for (let m = cfg.openMinutes; m <= latestStart; m += cfg.slotMinutes) {
       const end = m + totalDurationMinutes;
       const available =
-        m >= earliestStart && candidates.some((c) => isFreeAt(busyMap, c.id, m, end));
+        m >= earliestStart &&
+        // No solo se descarta el bloque que empieza en el almuerzo: también el
+        // que empieza antes y terminaría dentro de él.
+        !hitsBreak(cfg, m, end) &&
+        candidates.some((c) => isFreeAt(busyMap, c.id, m, end));
       slots.push({ time: minutesToHHMM(m), endTime: minutesToHHMM(end), available });
     }
 
@@ -328,6 +336,14 @@ router.post('/appointments', bookingAttemptLimiter, async (req, res) => {
     }
     if (endMin > cfg.closeMinutes) {
       return fail(res, 400, 'AFTER_HOURS', 'Los servicios seleccionados no alcanzan a terminar antes del cierre.');
+    }
+    if (hitsBreak(cfg, startMin, endMin)) {
+      return fail(
+        res,
+        400,
+        'BREAK_TIME',
+        `Ese horario coincide con nuestra hora de almuerzo (${cfg.breakStart} a ${cfg.breakEnd}). Elige otro bloque.`
+      );
     }
     if (date === now.dateStr && startMin < now.minutes + cfg.minNoticeMinutes) {
       return fail(res, 400, 'TOO_SOON', 'Necesitamos algo más de anticipación. Elige un horario más adelante.');

@@ -166,6 +166,13 @@ export default function StepDateTime({
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
             Horarios disponibles
           </p>
+          {/* Explica el hueco del mediodía antes de que la clienta lo busque. */}
+          {config.breakStart && config.breakEnd && (
+            <p className="text-xs text-gray-400 mb-2">
+              Cerramos por almuerzo de {formatTime12h(config.breakStart)} a{' '}
+              {formatTime12h(config.breakEnd)}.
+            </p>
+          )}
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {slots.map((s) => {
               const selected = s.time === time;

@@ -15,6 +15,10 @@ const BOOKING_DEFAULTS = {
   booking_min_notice_minutes: '120',
   booking_max_advance_days: '30',
   booking_closed_weekdays: '0', // 0 = domingo (índices de Date.getDay())
+  // Hora de almuerzo: no se ofrece ningún bloque que la toque. Para desactivar
+  // el descanso basta guardar cualquiera de las dos claves vacía.
+  booking_break_start: '12:00',
+  booking_break_end: '13:00',
 };
 
 const BOOKING_SETTING_KEYS = Object.keys(BOOKING_DEFAULTS);
@@ -79,10 +83,36 @@ function parseBookingConfig(map = {}) {
     map.booking_closed_weekdays ?? BOOKING_DEFAULTS.booking_closed_weekdays
   );
 
+  // El descanso solo cuenta si está bien formado y realmente recorta la jornada.
+  // Cualquier valor raro (vacío, invertido, fuera del horario) simplemente lo
+  // desactiva: nunca debe dejar el portal sin bloques.
+  let breakStartMinutes = parseTimeToMinutes(
+    map.booking_break_start ?? BOOKING_DEFAULTS.booking_break_start,
+    null
+  );
+  let breakEndMinutes = parseTimeToMinutes(
+    map.booking_break_end ?? BOOKING_DEFAULTS.booking_break_end,
+    null
+  );
+  if (
+    breakStartMinutes === null ||
+    breakEndMinutes === null ||
+    breakStartMinutes >= breakEndMinutes ||
+    breakEndMinutes <= openMinutes ||
+    breakStartMinutes >= closeMinutes
+  ) {
+    breakStartMinutes = null;
+    breakEndMinutes = null;
+  }
+
   return {
     openMinutes,
     closeMinutes,
     slotMinutes,
+    breakStartMinutes,
+    breakEndMinutes,
+    breakStart: breakStartMinutes === null ? null : minutesToHHMM(breakStartMinutes),
+    breakEnd: breakEndMinutes === null ? null : minutesToHHMM(breakEndMinutes),
     minNoticeMinutes: parseIntInRange(
       map.booking_min_notice_minutes ?? BOOKING_DEFAULTS.booking_min_notice_minutes,
       120,
@@ -102,6 +132,28 @@ function parseBookingConfig(map = {}) {
   };
 }
 
+// ¿El servicio invade la hora de almuerzo? Rango semi-abierto: terminar justo
+// a las 12:00 o empezar justo a la 1:00 pm sí se permite.
+function hitsBreak(cfg, startMinutes, endMinutes) {
+  if (cfg.breakStartMinutes === null) return false;
+  return startMinutes < cfg.breakEndMinutes && endMinutes > cfg.breakStartMinutes;
+}
+
+// Tramos continuos de atención, ya descontado el almuerzo.
+function openSegments(cfg) {
+  if (cfg.breakStartMinutes === null) return [[cfg.openMinutes, cfg.closeMinutes]];
+  return [
+    [cfg.openMinutes, Math.min(cfg.breakStartMinutes, cfg.closeMinutes)],
+    [Math.max(cfg.breakEndMinutes, cfg.openMinutes), cfg.closeMinutes],
+  ].filter(([s, e]) => e > s);
+}
+
+// El servicio más largo que cabe sin partirse. Con almuerzo de por medio ya no
+// es simplemente cierre − apertura.
+function longestOpenStretch(cfg) {
+  return openSegments(cfg).reduce((max, [s, e]) => Math.max(max, e - s), 0);
+}
+
 async function getBookingConfig(db) {
   try {
     const rows = await db.setting.findMany({ where: { key: { in: BOOKING_SETTING_KEYS } } });
@@ -117,4 +169,7 @@ module.exports = {
   BOOKING_SETTING_KEYS,
   parseBookingConfig,
   getBookingConfig,
+  hitsBreak,
+  openSegments,
+  longestOpenStretch,
 };

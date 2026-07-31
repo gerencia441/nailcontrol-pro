@@ -172,7 +172,12 @@ export default function BookingPortal() {
       setSubmitError(err.message);
       // Si alguien tomó el horario mientras confirmaba, se devuelve al paso de
       // fecha con la disponibilidad recién actualizada.
-      if (err.code === 'SLOT_TAKEN' || err.code === 'TOO_SOON' || err.code === 'CLOSED_DAY') {
+      if (
+        err.code === 'SLOT_TAKEN' ||
+        err.code === 'TOO_SOON' ||
+        err.code === 'CLOSED_DAY' ||
+        err.code === 'BREAK_TIME'
+      ) {
         setForm((f) => ({ ...f, step: 3, time: '' }));
         loadAvailability(form.date, form.serviceIds, form.manicuristId);
         scrollTop();
