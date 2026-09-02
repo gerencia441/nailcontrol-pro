@@ -205,6 +205,9 @@ router.patch('/:id/complete', async (req, res) => {
           status: 'COMPLETED',
           finalPricePaid: paid,
           paymentMethod,
+          // Se congela junto al precio: a partir de aquí los cierres de esta
+          // cita ya no dependen del % que tenga la ficha en el futuro.
+          commissionPercentage: appt.manicurist?.commissionPercentage ?? null,
         },
         include: INCLUDE_FULL,
       });

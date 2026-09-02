@@ -143,7 +143,14 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
   for (const appt of appointments) {
     const key = appt.manicurist.id;
     const paid = Number(appt.finalPricePaid) || 0;
-    const commissionPercentage = Number(appt.manicurist?.commissionPercentage) || 0;
+    // Prioriza el % congelado en la cita al completarla; solo cae al de la ficha
+    // en citas antiguas sin backfill. Sin esto, cambiar el % de una manicurista
+    // reescribía las comisiones de todos los cierres ya emitidos.
+    const commissionPercentage = Number(
+      appt.commissionPercentage != null
+        ? appt.commissionPercentage
+        : appt.manicurist?.commissionPercentage
+    ) || 0;
     const role = roleByManicuristId[key] === 'ADMIN' ? 'ADMIN' : 'MANICURIST';
 
     if (!liquidationMap[key]) {

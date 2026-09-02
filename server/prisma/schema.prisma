@@ -64,6 +64,10 @@ model Appointment {
   confirmed          Boolean              @default(false)
   source             BookingSource        @default(ADMIN)
   finalPricePaid     Float?
+  // % de comisión vigente al completar la cita. Se congela igual que en Finance
+  // para que cambiar el % de la ficha no reescriba los cierres ya cerrados.
+  // Null en citas no completadas: se resuelve con el % actual de la ficha.
+  commissionPercentage Float?
   paymentMethod      PaymentMethod?
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt

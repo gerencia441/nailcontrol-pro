@@ -7,3 +7,5 @@ server/node_modules/
 *.log
 .vscode/
 server/backups/
+# Respaldos previos a migraciones (llevan datos financieros de produccion)
+backup-pre-migracion-*.json
