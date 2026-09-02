@@ -64,6 +64,72 @@ function SummaryCard({ title, value, tone = 'neutral' }) {
   );
 }
 
+// Reparto del Saldo del Salón en los dos rubros operativos que calcula el
+// backend (fundDistribution). Solo se pinta en la vista de administrador.
+function FundDistribution({ report }) {
+  const dist = report.fundDistribution;
+  if (!dist) return null;
+
+  const billedAdmin      = report.totalBilledAdmin      || 0;
+  const billedManicurist = report.totalBilledManicurist || 0;
+  const repartido = dist.fondoInsumos + dist.cajaEstudio;
+  // El reparto asigna el 100% del ingreso de las citas. Cuadra con el Saldo del
+  // Salón solo si no hay egresos y todo el ingreso viene de citas COMPLETED;
+  // fuera de eso queda un descuadre que conviene mostrar en vez de esconder.
+  const descuadre = report.netAfterCommissions - repartido;
+  const cuadra = Math.abs(descuadre) < 1;
+
+  return (
+    <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+      <h3 className="section-title mb-4">Distribución del Saldo del Salón</h3>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+        <div className="rounded-xl p-4 bg-amber-50 border border-amber-100">
+          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Fondo de Insumos</p>
+          <p className="text-2xl font-bold text-amber-700 mt-1">{formatCurrency(dist.fondoInsumos)}</p>
+          <p className="text-xs text-amber-600 mt-1 opacity-80">25% de los ingresos</p>
+        </div>
+        <div className="rounded-xl p-4 bg-sky-50 border border-sky-100">
+          <p className="text-xs font-semibold text-sky-700 uppercase tracking-wider">Caja Estudio</p>
+          <p className="text-2xl font-bold text-sky-700 mt-1">{formatCurrency(dist.cajaEstudio)}</p>
+          <p className="text-xs text-sky-600 mt-1 opacity-80">Retención para gastos fijos</p>
+        </div>
+      </div>
+
+      <div className="space-y-1 text-sm max-w-md">
+        <div className="flex justify-between py-1.5">
+          <span className="text-gray-500">Fondo de Insumos (25% de {formatCurrency(report.totalIncome)})</span>
+          <span className="font-semibold text-amber-600">{formatCurrency(dist.fondoInsumos)}</span>
+        </div>
+        <div className="flex justify-between pt-2 pb-1">
+          <span className="text-gray-500">Caja Estudio</span>
+          <span className="font-semibold text-sky-600">{formatCurrency(dist.cajaEstudio)}</span>
+        </div>
+        <div className="flex justify-between py-1 pl-4 text-xs">
+          <span className="text-gray-400">40% de lo facturado por admin ({formatCurrency(billedAdmin)})</span>
+          <span className="text-sky-500">{formatCurrency(billedAdmin * 0.4)}</span>
+        </div>
+        <div className="flex justify-between py-1 pl-4 text-xs">
+          <span className="text-gray-400">25% de lo facturado por manicuristas ({formatCurrency(billedManicurist)})</span>
+          <span className="text-sky-500">{formatCurrency(billedManicurist * 0.25)}</span>
+        </div>
+        <div className="flex justify-between py-2.5 border-t-2 border-gray-200 mt-2">
+          <span className="font-bold text-gray-900">= Total repartido</span>
+          <span className="text-lg font-bold text-gray-900">{formatCurrency(repartido)}</span>
+        </div>
+      </div>
+
+      {!cuadra && (
+        <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          El reparto difiere del Saldo del Salón en {formatCurrency(Math.abs(descuadre))}.
+          Se debe a los egresos del periodo y a los ingresos que no provienen de una cita
+          completada, que suman al total pero no a lo facturado por manicurista.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ReportView({ report, isAdmin, pendingCommissions = [], onPayCommission }) {
   if (!report) return null;
 
@@ -191,6 +257,8 @@ function ReportView({ report, isAdmin, pendingCommissions = [], onPayCommission 
           </div>
         </div>
       </div>
+
+      <FundDistribution report={report} />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">

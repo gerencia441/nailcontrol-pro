@@ -88,7 +88,7 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
     financeWhere.type = 'INCOME';
   }
 
-  const [finances, appointments, statusCounts] = await Promise.all([
+  const [finances, appointments, statusCounts, linkedUsers] = await Promise.all([
     prisma.finance.findMany({
       where: financeWhere,
       orderBy: { date: 'asc' },
@@ -103,7 +103,20 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
       where: apptWhere,
       _count: { _all: true },
     }),
+    // El rol no vive en Manicurist sino en User (User.manicuristId es @unique, así
+    // que la relación es 1:1). Se consulta aparte porque no hay relación Prisma
+    // declarada entre ambos modelos y por tanto no se puede hacer include.
+    prisma.user.findMany({
+      where: { manicuristId: { not: null } },
+      select: { manicuristId: true, role: true },
+    }),
   ]);
+
+  // manicuristId -> UserRole. Una manicurista sin cuenta de usuario asociada se
+  // trata como MANICURIST (el caso por defecto y el porcentaje base del 50%).
+  const roleByManicuristId = Object.fromEntries(
+    linkedUsers.map((u) => [u.manicuristId, u.role])
+  );
 
   const incomes  = finances.filter((f) => f.type === 'INCOME');
   // Los pagos de comisión (isCommission=true) se excluyen de totalExpenses porque
@@ -122,16 +135,23 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
   const totalCommissionsPaid = commissionPayments.reduce((s, f) => s + f.amount, 0);
 
   const liquidationMap = {};
+  // Facturación segmentada por el rol del usuario dueño de la ficha, que es lo
+  // que alimenta el reparto de cajaEstudio (ver fundDistribution más abajo).
+  let totalBilledAdmin = 0;
+  let totalBilledManicurist = 0;
+
   for (const appt of appointments) {
     const key = appt.manicurist.id;
     const paid = Number(appt.finalPricePaid) || 0;
     const commissionPercentage = Number(appt.manicurist?.commissionPercentage) || 0;
+    const role = roleByManicuristId[key] === 'ADMIN' ? 'ADMIN' : 'MANICURIST';
 
     if (!liquidationMap[key]) {
       liquidationMap[key] = {
         id: appt.manicurist.id,
         name: appt.manicurist.name,
         color: appt.manicurist.color,
+        role,
         commissionPercentage,
         totalBilled: 0,
         commissionEarned: 0,
@@ -142,6 +162,9 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
     liquidationMap[key].totalBilled += paid;
     liquidationMap[key].commissionEarned += paid * (commissionPercentage / 100);
     liquidationMap[key].appointmentCount += 1;
+
+    if (role === 'ADMIN') totalBilledAdmin += paid;
+    else totalBilledManicurist += paid;
   }
 
   const manicuristLiquidation = Object.values(liquidationMap);
@@ -155,6 +178,17 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
   );
   const net = totalIncome - totalExpenses;
 
+  // Desglose de lo que retiene el salón (netAfterCommissions) en dos rubros
+  // operativos. La identidad se cumple cuando el ADMIN comisiona al 35% y las
+  // manicuristas al 50%, y todo el ingreso del periodo viene de citas COMPLETED:
+  //   netAfterCommissions = totalIncome − (0.35·A + 0.50·M)  con A+M = totalIncome
+  //                       = 0.65·A + 0.50·M
+  //   fondoInsumos + cajaEstudio = 0.25·(A+M) + 0.40·A + 0.25·M = 0.65·A + 0.50·M
+  // Con totalExpenses > 0, o con ingresos manuales que no provienen de citas, la
+  // igualdad deja de darse: son rubros de reparto, no un cuadre contable.
+  const fondoInsumos = totalIncome * 0.25;
+  const cajaEstudio = totalBilledAdmin * 0.4 + totalBilledManicurist * 0.25;
+
   return {
     period,
     dateFrom: toDateLabel(start),
@@ -165,6 +199,12 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
     totalCommissions,
     totalCommissionsPaid,
     netAfterCommissions: net - totalCommissions,
+    totalBilledAdmin,
+    totalBilledManicurist,
+    fundDistribution: {
+      fondoInsumos,
+      cajaEstudio,
+    },
     byPaymentMethod,
     appointmentStatus,
     manicuristLiquidation,
