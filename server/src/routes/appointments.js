@@ -267,6 +267,17 @@ router.patch('/:id/complete', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const { status, date, manicuristId, serviceIds, confirmed } = req.body;
+
+    // Completar una cita tiene que pasar por PATCH /:id/complete, que además crea
+    // el ingreso y congela el % de comisión. Permitirlo aquí dejaba la cita como
+    // COMPLETED sin registro de ingreso: así ocurrió con las dos citas del
+    // 2026-08-10 que hubo que reconstruir a mano.
+    if (status === 'COMPLETED') {
+      return res.status(400).json({
+        error: 'Para completar una cita usa la acción "Completar", que registra el cobro. No se puede marcar como completada desde la edición.',
+      });
+    }
+
     const needsConflictCheck = date !== undefined || manicuristId !== undefined || serviceIds !== undefined;
     // Nota: un "des-cancelar" (status CANCELLED -> PENDING sin tocar fecha/manicurista/servicios)
     // no dispara este check. No hay flujo de UI para eso hoy; se acepta el hueco.
@@ -380,6 +391,16 @@ router.patch('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
   try {
+    // Una cita completada ya generó su registro de ingreso, y ese ingreso NO se
+    // borra en cascada. Borrar la cita dejaría el ingreso sin nadie a quien
+    // atribuirlo: así se produjeron los huérfanos de mayo-julio de 2026.
+    const existing = await req.prisma.appointment.findUnique({ where: { id: req.params.id } });
+    if (existing?.status === 'COMPLETED') {
+      return res.status(400).json({
+        error: 'No se puede eliminar una cita completada porque su ingreso quedaría sin manicurista. Elimina primero el registro de ingreso desde Finanzas.',
+      });
+    }
+
     // Try to delete linked google event first
     try {
       const appt = await req.prisma.appointment.findUnique({ where: { id: req.params.id } });

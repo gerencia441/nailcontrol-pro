@@ -78,6 +78,9 @@ function FundDistribution({ report }) {
   // fuera de eso queda un descuadre que conviene mostrar en vez de esconder.
   const descuadre = report.netAfterCommissions - repartido;
   const cuadra = Math.abs(descuadre) < 1;
+  // Ingresos que no vienen de una cita completada: la otra mitad del descuadre,
+  // junto a los egresos. Nunca generan comisión pendiente.
+  const sinCita = Math.max(0, report.incomeWithoutAppointment || 0);
 
   return (
     <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
@@ -120,11 +123,27 @@ function FundDistribution({ report }) {
       </div>
 
       {!cuadra && (
-        <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-          El reparto difiere del Saldo del Salón en {formatCurrency(Math.abs(descuadre))}.
-          Se debe a los egresos del periodo y a los ingresos que no provienen de una cita
-          completada, que suman al total pero no a lo facturado por manicurista.
-        </p>
+        <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 space-y-1.5">
+          <p className="font-semibold">
+            El reparto difiere del Saldo del Salón en {formatCurrency(Math.abs(descuadre))}.
+          </p>
+          <ul className="space-y-1 list-disc list-inside">
+            {report.totalExpenses > 0 && (
+              <li>
+                Egresos del periodo: {formatCurrency(report.totalExpenses)}. Salen del Saldo del
+                Salón pero el reparto se calcula sobre los ingresos.
+              </li>
+            )}
+            {sinCita > 0 && (
+              <li>
+                Ingresos sin cita asociada: {formatCurrency(sinCita)}. Suman al total pero no a
+                lo facturado por ninguna manicurista, así que no generan ni comisión ni Caja
+                Estudio. Son de mayo a julio de 2026, cuando la agenda aún no se usaba de forma
+                sistemática; desde agosto no hay ninguno.
+              </li>
+            )}
+          </ul>
+        </div>
       )}
     </div>
   );

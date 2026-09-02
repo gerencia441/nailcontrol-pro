@@ -208,6 +208,11 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
     netAfterCommissions: net - totalCommissions,
     totalBilledAdmin,
     totalBilledManicurist,
+    // Ingresos del periodo que no provienen de una cita completada. Son los que
+    // impiden que el reparto de fondos cuadre con el Saldo del Salón: suman al
+    // total pero no a lo facturado por ninguna manicurista. Casi todos son de
+    // mayo-julio de 2026, cuando aún no se usaba la agenda de forma sistemática.
+    incomeWithoutAppointment: totalIncome - (totalBilledAdmin + totalBilledManicurist),
     fundDistribution: {
       fondoInsumos,
       cajaEstudio,
