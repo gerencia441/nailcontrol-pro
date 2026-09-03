@@ -134,6 +134,21 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
   const totalExpenses        = expenses.reduce((s, f) => s + f.amount, 0);
   const totalCommissionsPaid = commissionPayments.reduce((s, f) => s + f.amount, 0);
 
+  // Egresos reales por categoría (sin contar pagos de comisión, ya excluidos de
+  // `expenses`). "uncategorized" es lo registrado antes de esta clasificación o
+  // sin categoría asignada; se muestra aparte para no perderlo del total.
+  const expensesByCategory = expenses.reduce(
+    (acc, f) => {
+      const key = f.expenseCategory === 'SUPPLIES' ? 'supplies'
+        : f.expenseCategory === 'FIXED' ? 'fixed'
+        : f.expenseCategory === 'OTHER' ? 'other'
+        : 'uncategorized';
+      acc[key] += f.amount;
+      return acc;
+    },
+    { supplies: 0, fixed: 0, other: 0, uncategorized: 0 }
+  );
+
   const liquidationMap = {};
   // Facturación segmentada por el rol del usuario dueño de la ficha, que es lo
   // que alimenta el reparto de cajaEstudio (ver fundDistribution más abajo).
@@ -217,6 +232,7 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
       fondoInsumos,
       cajaEstudio,
     },
+    expensesByCategory,
     byPaymentMethod,
     appointmentStatus,
     manicuristLiquidation,
@@ -421,10 +437,20 @@ router.get('/', async (req, res) => {
   }
 });
 
+const EXPENSE_CATEGORIES = ['SUPPLIES', 'FIXED', 'OTHER'];
+
 router.post('/', async (req, res) => {
   if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
   try {
-    const { type, amount, description, date, paymentMethod } = req.body;
+    const { type, amount, description, date, paymentMethod, expenseCategory } = req.body;
+
+    // La categoría solo tiene sentido en un egreso; en un ingreso se ignora
+    // aunque llegue en el body, para no dejar basura en registros que nunca
+    // se leen por categoría.
+    if (expenseCategory && !EXPENSE_CATEGORIES.includes(expenseCategory)) {
+      return res.status(400).json({ error: 'expenseCategory inválida' });
+    }
+
     const finance = await req.prisma.finance.create({
       data: {
         type,
@@ -432,6 +458,7 @@ router.post('/', async (req, res) => {
         description,
         date: startOfBogotaDay(date),
         paymentMethod: paymentMethod || null,
+        expenseCategory: type === 'EXPENSE' ? (expenseCategory || null) : null,
       },
     });
     res.status(201).json(finance);

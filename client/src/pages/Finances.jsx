@@ -44,12 +44,29 @@ function isoWeekToDateInput(value) {
 
 const EMPTY_FORM = {
   type: 'EXPENSE', amount: '', description: '',
-  date: toLocalDateInput(new Date()), paymentMethod: '',
+  date: toLocalDateInput(new Date()), paymentMethod: '', expenseCategory: '',
 };
 
 const paymentLabels = {
   CASH: 'Efectivo', BANCOLOMBIA: 'Bancolombia', NEQUI: 'Nequi', UNKNOWN: 'Sin método',
 };
+
+const expenseCategoryLabels = {
+  SUPPLIES: 'Insumos', FIXED: 'Gastos Fijos', OTHER: 'Otro',
+};
+
+const expenseCategoryStyles = {
+  SUPPLIES: 'bg-amber-100 text-amber-700', FIXED: 'bg-sky-100 text-sky-700', OTHER: 'bg-gray-100 text-gray-600',
+};
+
+function ExpenseCategoryBadge({ category }) {
+  if (!category) return null;
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${expenseCategoryStyles[category] || 'bg-gray-100 text-gray-500'}`}>
+      {expenseCategoryLabels[category] || category}
+    </span>
+  );
+}
 
 function SummaryCard({ title, value, tone = 'neutral' }) {
   const tones = {
@@ -82,6 +99,14 @@ function FundDistribution({ report }) {
   // junto a los egresos. Nunca generan comisión pendiente.
   const sinCita = Math.max(0, report.incomeWithoutAppointment || 0);
 
+  // Gasto real por categoría, para comparar contra lo reservado. Los egresos
+  // "Otro" y "sin categorizar" no restan de ningún fondo específico: se listan
+  // aparte porque no sabemos a cuál de los dos rubros pertenecen.
+  const cat = report.expensesByCategory || { supplies: 0, fixed: 0, other: 0, uncategorized: 0 };
+  const disponibleInsumos = dist.fondoInsumos - cat.supplies;
+  const disponibleCaja    = dist.cajaEstudio - cat.fixed;
+  const sinAsignar = cat.other + cat.uncategorized;
+
   return (
     <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
       <h3 className="section-title mb-4">Distribución del Saldo del Salón</h3>
@@ -91,13 +116,44 @@ function FundDistribution({ report }) {
           <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Fondo de Insumos</p>
           <p className="text-2xl font-bold text-amber-700 mt-1">{formatCurrency(dist.fondoInsumos)}</p>
           <p className="text-xs text-amber-600 mt-1 opacity-80">25% de los ingresos</p>
+          <div className="mt-3 pt-3 border-t border-amber-100 space-y-1 text-xs">
+            <div className="flex justify-between">
+              <span className="text-amber-700 opacity-70">Gastado en insumos</span>
+              <span className="text-amber-700 font-semibold">{formatCurrency(cat.supplies)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-amber-700 opacity-70">Disponible</span>
+              <span className={`font-bold ${disponibleInsumos >= 0 ? 'text-amber-800' : 'text-blush-600'}`}>
+                {formatCurrency(disponibleInsumos)}
+              </span>
+            </div>
+          </div>
         </div>
         <div className="rounded-xl p-4 bg-sky-50 border border-sky-100">
           <p className="text-xs font-semibold text-sky-700 uppercase tracking-wider">Caja Estudio</p>
           <p className="text-2xl font-bold text-sky-700 mt-1">{formatCurrency(dist.cajaEstudio)}</p>
           <p className="text-xs text-sky-600 mt-1 opacity-80">Retención para gastos fijos</p>
+          <div className="mt-3 pt-3 border-t border-sky-100 space-y-1 text-xs">
+            <div className="flex justify-between">
+              <span className="text-sky-700 opacity-70">Gastado en fijos</span>
+              <span className="text-sky-700 font-semibold">{formatCurrency(cat.fixed)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sky-700 opacity-70">Disponible</span>
+              <span className={`font-bold ${disponibleCaja >= 0 ? 'text-sky-800' : 'text-blush-600'}`}>
+                {formatCurrency(disponibleCaja)}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
+
+      {sinAsignar > 0 && (
+        <p className="text-xs text-gray-500 mb-4 -mt-2">
+          {formatCurrency(sinAsignar)} en egresos "Otro" o sin categorizar no se descuentan de
+          ningún fondo porque no se sabe a cuál pertenecen.
+        </p>
+      )}
 
       <div className="space-y-1 text-sm max-w-md">
         <div className="flex justify-between py-1.5">
@@ -407,7 +463,12 @@ function ReportView({ report, isAdmin, pendingCommissions = [], onPayCommission 
                       {f.description}
                     </div>
                   </td>
-                  <td className="py-3 text-gray-500">{f.type === 'INCOME' ? 'Ingreso' : 'Egreso'}</td>
+                  <td className="py-3 text-gray-500">
+                    <div className="flex items-center gap-1.5">
+                      {f.type === 'INCOME' ? 'Ingreso' : 'Egreso'}
+                      <ExpenseCategoryBadge category={f.expenseCategory} />
+                    </div>
+                  </td>
                   <td className={`py-3 text-right font-semibold ${f.type === 'INCOME' ? 'text-emerald-600' : 'text-blush-500'}`}>
                     {f.type === 'INCOME' ? '+' : '-'}{formatCurrency(f.amount)}
                   </td>
@@ -485,7 +546,11 @@ export default function Finances() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.createFinance({ ...form, paymentMethod: form.paymentMethod || null });
+      await api.createFinance({
+        ...form,
+        paymentMethod: form.paymentMethod || null,
+        expenseCategory: form.type === 'EXPENSE' ? (form.expenseCategory || null) : null,
+      });
       setModalOpen(false);
       setForm(EMPTY_FORM);
       load();
@@ -623,15 +688,18 @@ export default function Finances() {
                         </div>
                       </td>
                       <td className="px-5 py-3">
-                        {f.type === 'INCOME' ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-semibold">
-                            <TrendingUp size={13} /> Ingreso
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-blush-500 text-xs font-semibold">
-                            <TrendingDown size={13} /> Egreso
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {f.type === 'INCOME' ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-semibold">
+                              <TrendingUp size={13} /> Ingreso
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-blush-500 text-xs font-semibold">
+                              <TrendingDown size={13} /> Egreso
+                            </span>
+                          )}
+                          <ExpenseCategoryBadge category={f.expenseCategory} />
+                        </div>
                       </td>
                       <td className="px-5 py-3"><PaymentBadge method={f.paymentMethod} /></td>
                       <td className={`px-5 py-3 text-right font-semibold ${f.type === 'INCOME' ? 'text-emerald-600' : 'text-blush-500'}`}>
@@ -873,11 +941,24 @@ export default function Finances() {
           <Select
             label="Tipo *" id="fin-type"
             value={form.type}
-            onChange={(e) => setForm({ ...form, type: e.target.value })}
+            onChange={(e) => setForm({ ...form, type: e.target.value, expenseCategory: '' })}
           >
             <option value="INCOME">Ingreso</option>
             <option value="EXPENSE">Egreso</option>
           </Select>
+          {form.type === 'EXPENSE' && (
+            <Select
+              label="Categoría del Egreso *" id="fin-expense-category"
+              value={form.expenseCategory}
+              onChange={(e) => setForm({ ...form, expenseCategory: e.target.value })}
+              required
+            >
+              <option value="" disabled>Selecciona una categoría</option>
+              <option value="SUPPLIES">Insumos</option>
+              <option value="FIXED">Gastos Fijos</option>
+              <option value="OTHER">Otro</option>
+            </Select>
+          )}
           <Input
             label="Descripción *" id="fin-desc"
             value={form.description}

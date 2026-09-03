@@ -91,6 +91,10 @@ model Finance {
   manicuristId         String?
   isCommission         Boolean        @default(false)
   commissionPercentage Float?
+  // Solo aplica a EXPENSE que no son pago de comisión (isCommission=false).
+  // Null = sin categorizar: todo lo registrado antes de esta función, y
+  // cualquier egreso nuevo al que no se le asigne categoría.
+  expenseCategory      ExpenseCategory?
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 }
@@ -155,6 +159,14 @@ enum PaymentMethod {
 enum FinanceType {
   INCOME
   EXPENSE
+}
+
+// Clasificación operativa de un egreso, para poder comparar el gasto real
+// contra las reservas fondoInsumos/cajaEstudio de fundDistribution.
+enum ExpenseCategory {
+  SUPPLIES // Insumos
+  FIXED    // Gastos fijos (arriendo, EPS, cuotas, publicidad recurrente...)
+  OTHER    // Categorizado explícitamente como "otro"
 }
 
 enum UserRole {
