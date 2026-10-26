@@ -90,7 +90,7 @@ export default function Users() {
                         : 'bg-gray-100 text-gray-500'
                     }`}>
                       {u.role === 'ADMIN' ? <ShieldCheck size={9} /> : <User size={9} />}
-                      {u.role === 'ADMIN' ? 'Administrador' : 'Manicurista'}
+                      {u.role === 'ADMIN' ? 'Administrador' : 'Especialista'}
                     </span>
                   </div>
                   {u.manicuristId && (
@@ -129,12 +129,12 @@ export default function Users() {
             required={!editId} placeholder="••••••••" />
           <Select label="Rol *" id="u-role" value={form.role}
             onChange={(e) => setForm({ ...form, role: e.target.value })}>
-            <option value="MANICURIST">Manicurista</option>
+            <option value="MANICURIST">Especialista</option>
             <option value="ADMIN">Administrador</option>
           </Select>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              Vincular a manicurista
+              Vincular a especialista
             </label>
             <select
               value={form.manicuristId}
@@ -147,7 +147,7 @@ export default function Users() {
               ))}
             </select>
             <p className="text-[11px] text-gray-400">
-              Necesario para que el usuario manicurista vea sus propias finanzas.
+              Necesario para que el usuario especialista vea sus propias finanzas.
             </p>
           </div>
           <div className="flex gap-2 pt-2">

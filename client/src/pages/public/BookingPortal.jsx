@@ -65,7 +65,7 @@ export default function BookingPortal() {
 
   // Solo se ofrecen las manicuristas que prestan TODOS los servicios elegidos:
   // la cita la atiende una sola persona de principio a fin.
-  const eligibleManicurists = filterByServices(catalog.manicurists, form.serviceIds);
+  const eligibleManicurists = filterByServices(catalog.manicurists, selectedServices, catalog.services);
 
   const loadAvailability = useCallback(
     async (date, serviceIds, manicuristId) => {
@@ -105,7 +105,9 @@ export default function BookingPortal() {
       // Si la manicurista ya elegida no presta la nueva combinación, se vuelve
       // a "cualquiera disponible" en lugar de arrastrar una selección inválida.
       const chosen = catalog.manicurists.find((m) => m.id === f.manicuristId);
-      const keepManicurist = !chosen || providesAll(chosen, serviceIds);
+      const keepManicurist =
+        !chosen ||
+        providesAll(chosen, catalog.services.filter((s) => serviceIds.includes(s.id)), catalog.services);
       return {
         ...f,
         serviceIds,
@@ -352,7 +354,7 @@ export default function BookingPortal() {
           </Link>
         ) : (
           <Link to="/login" className="text-xs text-gray-400 hover:text-gray-600">
-            Acceso manicuristas
+            Acceso especialistas
           </Link>
         )}
       </footer>

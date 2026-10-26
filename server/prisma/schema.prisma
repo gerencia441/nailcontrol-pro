@@ -24,6 +24,9 @@ model Service {
   name         String
   basePrice    Float
   durationMinutes Int
+  category     ServiceCategory      @default(MANICURE)
+  // Solo aplica a MANICURE; en el resto de categorías queda null.
+  subcategory  ServiceSubcategory?
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   appointments AppointmentService[]
@@ -40,11 +43,24 @@ model Manicurist {
   updatedAt            DateTime      @updatedAt
   appointments         Appointment[]
   services             ManicuristService[]
+  categories           ManicuristCategory[]
 }
 
-// Servicios que presta cada manicurista. Un conjunto VACÍO significa "presta
-// todos los servicios" (ver server/src/lib/manicuristServices.js): así las
-// fichas existentes siguen funcionando sin necesidad de un backfill.
+// En la interfaz, "Manicurist" se muestra como "Especialista" (uñas, cejas,
+// pestañas...). Los nombres internos se conservan para no migrar tablas.
+//
+// Qué presta cada especialista = categorías asignadas + servicios explícitos.
+// La regla completa está en server/src/lib/manicuristServices.js.
+model ManicuristCategory {
+  manicuristId String
+  category     ServiceCategory
+  manicurist   Manicurist      @relation(fields: [manicuristId], references: [id], onDelete: Cascade)
+
+  @@id([manicuristId, category])
+}
+
+// Servicios asignados explícitamente a cada especialista: acotan su categoría
+// o suman excepciones de otra (ver server/src/lib/manicuristServices.js).
 model ManicuristService {
   manicuristId String
   serviceId    String
@@ -95,6 +111,10 @@ model Finance {
   // Null = sin categorizar: todo lo registrado antes de esta función, y
   // cualquier egreso nuevo al que no se le asigne categoría.
   expenseCategory      ExpenseCategory?
+  // Categoría de servicio a la que se imputa un egreso (p. ej. insumos de
+  // pestañas) para el balance por categoría. Null = gasto general del salón.
+  // En ingresos de citas se llena si todos sus servicios son de una categoría.
+  serviceCategory      ServiceCategory?
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 }
@@ -102,6 +122,13 @@ model Finance {
 model AppointmentService {
   appointmentId String
   serviceId     String
+  // Congelados al completar la cita, igual que Appointment.commissionPercentage:
+  // categoría del servicio y parte de finalPricePaid que le corresponde. Así los
+  // reportes por categoría no cambian si luego se edita el servicio. Null en
+  // citas no completadas o completadas antes de existir estas columnas (los
+  // reportes las calculan al vuelo con los datos actuales del servicio).
+  category      ServiceCategory?
+  amount        Float?
   appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   service       Service     @relation(fields: [serviceId], references: [id])
 
@@ -167,6 +194,22 @@ enum ExpenseCategory {
   SUPPLIES // Insumos
   FIXED    // Gastos fijos (arriendo, EPS, cuotas, publicidad recurrente...)
   OTHER    // Categorizado explícitamente como "otro"
+}
+
+// Categoría general del servicio. Determina qué especialistas lo prestan y
+// cómo se reparten los ingresos y egresos en los reportes de Finanzas.
+enum ServiceCategory {
+  MANICURE
+  PEDICURE
+  EYEBROWS // Cejas
+  LASHES   // Pestañas
+}
+
+// Subcategorías de MANICURE (las demás categorías no tienen).
+enum ServiceSubcategory {
+  NATURAL_NAIL_OVERLAY // Forrado de uña natural
+  ARTIFICIAL_SYSTEMS   // Sistemas artificiales
+  MANICURE_SERVICES    // Servicios de manicure
 }
 
 enum UserRole {

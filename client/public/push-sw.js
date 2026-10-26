@@ -1,4 +1,4 @@
-/* Manejadores de Web Push para NailControl Pro.
+/* Manejadores de Web Push para BeautyControl Pro.
  *
  * Este archivo se inyecta en el service worker generado por vite-plugin-pwa
  * (workbox.importScripts). Corre aunque la aplicación esté en segundo plano o
@@ -11,14 +11,14 @@ self.addEventListener('push', (event) => {
   try {
     payload = event.data ? event.data.json() : {};
   } catch {
-    payload = { title: 'NailControl Pro', body: event.data ? event.data.text() : '' };
+    payload = { title: 'BeautyControl Pro', body: event.data ? event.data.text() : '' };
   }
 
-  const title = payload.title || 'NailControl Pro';
+  const title = payload.title || 'BeautyControl Pro';
   const options = {
     body: payload.body || '',
-    icon: '/logonailcontrol.png',
-    badge: '/logonailcontrol.png',
+    icon: '/logo.png',
+    badge: '/logo.png',
     tag: payload.tag || 'nailcontrol',
     // Reemplaza un aviso previo con el mismo tag en lugar de acumularlos, pero
     // sí vibra/suena de nuevo.

@@ -1,4 +1,6 @@
-# NailControl Pro - Agent Guide
+# BeautyControl Pro (antes NailControl Pro) - Agent Guide
+
+> Terminología: en la interfaz las "manicuristas" ahora se llaman **Especialistas** (uñas, cejas, pestañas). En código/API/BD se conserva `Manicurist`. Ver la sección "Terminología" de CLAUDE.md.
 
 ## Project Summary
 

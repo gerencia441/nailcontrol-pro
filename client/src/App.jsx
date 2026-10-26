@@ -61,7 +61,9 @@ export default function App() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="clients" element={<Clients />} />
         <Route path="services" element={<AdminRoute><Services /></AdminRoute>} />
-        <Route path="manicurists" element={<AdminRoute><Manicurists /></AdminRoute>} />
+        <Route path="especialistas" element={<AdminRoute><Manicurists /></AdminRoute>} />
+        {/* URL anterior a renombrar "manicuristas" a "especialistas" */}
+        <Route path="manicurists" element={<Navigate to="/especialistas" replace />} />
         <Route path="appointments" element={<Appointments />} />
         <Route path="finances" element={<Finances />} />
         <Route path="settings" element={<AdminRoute><Settings /></AdminRoute>} />

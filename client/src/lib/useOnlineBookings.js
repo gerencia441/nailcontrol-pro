@@ -86,15 +86,15 @@ export function useOnlineBookings() {
       const services = (appt.services || []).map((s) => s.name.trim()).join(' + ');
       showSystemNotification('Nueva reserva en línea', {
         body: `${appt.client?.name?.trim() || 'Una clienta'} · ${formatWhen(appt.date)}${services ? `\n${services}` : ''}`,
-        icon: '/logonailcontrol.png',
-        badge: '/logonailcontrol.png',
+        icon: '/logo.png',
+        badge: '/logo.png',
         tag: `online-booking-${appt.id}`,
       });
     } else {
       showSystemNotification(`${items.length} nuevas reservas en línea`, {
         body: 'Entra a Citas para revisarlas y confirmarlas.',
-        icon: '/logonailcontrol.png',
-        badge: '/logonailcontrol.png',
+        icon: '/logo.png',
+        badge: '/logo.png',
         tag: 'online-bookings-multi',
       });
     }

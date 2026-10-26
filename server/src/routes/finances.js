@@ -1,4 +1,10 @@
 const { Router } = require('express');
+const {
+  SERVICE_CATEGORIES,
+  SUPPLY_FUND_RATE_BY_CATEGORY,
+  isValidCategory,
+  allocatePaid,
+} = require('../lib/serviceCategories');
 const router = Router();
 
 // Todas las citas y finanzas se guardan en UTC pero representan hora local de
@@ -95,7 +101,16 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
     }),
     prisma.appointment.findMany({
       where: { ...apptWhere, status: 'COMPLETED' },
-      include: { manicurist: true },
+      include: {
+        manicurist: true,
+        services: {
+          select: {
+            category: true,
+            amount: true,
+            service: { select: { category: true, basePrice: true } },
+          },
+        },
+      },
       orderBy: { date: 'asc' },
     }),
     prisma.appointment.groupBy({
@@ -149,6 +164,32 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
     { supplies: 0, fixed: 0, other: 0, uncategorized: 0 }
   );
 
+  // Balance por categoría de servicio (manicure, pedicure, cejas, pestañas).
+  // Lo facturado sale de las citas completadas, repartido entre sus servicios;
+  // los insumos gastados, de los egresos imputados a cada categoría.
+  const byServiceCategory = Object.fromEntries(
+    SERVICE_CATEGORIES.map((c) => [
+      c,
+      {
+        billed: 0,
+        billedAdmin: 0,
+        billedManicurist: 0,
+        commissions: 0,
+        appointmentCount: 0,
+        suppliesSpent: 0,
+        otherExpenses: 0,
+      },
+    ])
+  );
+  // Egresos sin categoría de servicio: gastos generales del salón.
+  let generalExpenses = 0;
+  for (const f of expenses) {
+    const bucket = byServiceCategory[f.serviceCategory];
+    if (!bucket) generalExpenses += f.amount;
+    else if (f.expenseCategory === 'SUPPLIES') bucket.suppliesSpent += f.amount;
+    else bucket.otherExpenses += f.amount;
+  }
+
   const liquidationMap = {};
   // Facturación segmentada por el rol del usuario dueño de la ficha, que es lo
   // que alimenta el reparto de cajaEstudio (ver fundDistribution más abajo).
@@ -187,6 +228,38 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
 
     if (role === 'ADMIN') totalBilledAdmin += paid;
     else totalBilledManicurist += paid;
+
+    // Usa el reparto congelado al completar; las citas anteriores a esa
+    // columna se reparten al vuelo con la categoría y precio actuales.
+    const frozen = appt.services.length > 0 && appt.services.every((s) => s.amount != null && s.category);
+    const shares = frozen
+      ? appt.services.map((s) => ({ category: s.category, amount: s.amount }))
+      : (() => {
+          const current = appt.services.map((s) => s.service);
+          const amounts = allocatePaid(current, paid);
+          return current.map((s, i) => ({ category: s.category, amount: amounts[i] }));
+        })();
+    const touched = new Set();
+    for (const share of shares) {
+      const bucket = byServiceCategory[share.category];
+      if (!bucket) continue;
+      bucket.billed += share.amount;
+      if (role === 'ADMIN') bucket.billedAdmin += share.amount;
+      else bucket.billedManicurist += share.amount;
+      bucket.commissions += share.amount * (commissionPercentage / 100);
+      touched.add(share.category);
+    }
+    for (const c of touched) byServiceCategory[c].appointmentCount += 1;
+  }
+
+  for (const c of SERVICE_CATEGORIES) {
+    const b = byServiceCategory[c];
+    const rate = SUPPLY_FUND_RATE_BY_CATEGORY[c] ?? 0.25;
+    b.supplyFundRate = rate;
+    b.fondoInsumos = b.billed * rate;
+    b.cajaEstudio = b.billedAdmin * 0.4 + b.billedManicurist * 0.25;
+    // Lo que deja la categoría después de comisiones y de sus propios egresos.
+    b.net = b.billed - b.commissions - b.suppliesSpent - b.otherExpenses;
   }
 
   const manicuristLiquidation = Object.values(liquidationMap);
@@ -233,6 +306,8 @@ async function buildFinancialReport(prisma, { period, start, end }, manicuristId
       cajaEstudio,
     },
     expensesByCategory,
+    byServiceCategory,
+    generalExpenses,
     byPaymentMethod,
     appointmentStatus,
     manicuristLiquidation,
@@ -384,7 +459,7 @@ router.post('/pay-commission', async (req, res) => {
       return res.status(400).json({ error: 'manicuristId, amount y paymentMethod son requeridos' });
     }
     const manicurist = await req.prisma.manicurist.findUnique({ where: { id: manicuristId } });
-    if (!manicurist) return res.status(404).json({ error: 'Manicurista no encontrada' });
+    if (!manicurist) return res.status(404).json({ error: 'Especialista no encontrada' });
 
     const finance = await req.prisma.finance.create({
       data: {
@@ -442,13 +517,16 @@ const EXPENSE_CATEGORIES = ['SUPPLIES', 'FIXED', 'OTHER'];
 router.post('/', async (req, res) => {
   if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
   try {
-    const { type, amount, description, date, paymentMethod, expenseCategory } = req.body;
+    const { type, amount, description, date, paymentMethod, expenseCategory, serviceCategory } = req.body;
 
     // La categoría solo tiene sentido en un egreso; en un ingreso se ignora
     // aunque llegue en el body, para no dejar basura en registros que nunca
     // se leen por categoría.
     if (expenseCategory && !EXPENSE_CATEGORIES.includes(expenseCategory)) {
       return res.status(400).json({ error: 'expenseCategory inválida' });
+    }
+    if (serviceCategory && !isValidCategory(serviceCategory)) {
+      return res.status(400).json({ error: 'serviceCategory inválida' });
     }
 
     const finance = await req.prisma.finance.create({
@@ -459,6 +537,7 @@ router.post('/', async (req, res) => {
         date: startOfBogotaDay(date),
         paymentMethod: paymentMethod || null,
         expenseCategory: type === 'EXPENSE' ? (expenseCategory || null) : null,
+        serviceCategory: type === 'EXPENSE' ? (serviceCategory || null) : null,
       },
     });
     res.status(201).json(finance);

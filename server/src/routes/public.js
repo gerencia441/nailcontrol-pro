@@ -145,25 +145,35 @@ router.get('/catalog', readLimiter, async (req, res) => {
   try {
     const [services, manicurists] = await Promise.all([
       req.prisma.service.findMany({
-        select: { id: true, name: true, basePrice: true, durationMinutes: true },
-        orderBy: { name: 'asc' },
+        select: {
+          id: true, name: true, basePrice: true, durationMinutes: true, category: true, subcategory: true,
+        },
+        orderBy: [{ category: 'asc' }, { name: 'asc' }],
       }),
       // Proyección explícita: nunca exponer commissionPercentage ni el
-      // teléfono personal de las manicuristas.
+      // teléfono personal de las especialistas.
       req.prisma.manicurist.findMany({
-        select: { id: true, name: true, color: true, services: { select: { serviceId: true } } },
+        select: {
+          id: true,
+          name: true,
+          color: true,
+          services: { select: { serviceId: true } },
+          categories: { select: { category: true } },
+        },
         orderBy: { name: 'asc' },
       }),
     ]);
     res.json({
       services,
-      // `serviceIds` permite al portal ocultar de una vez a quien no presta lo
-      // que la clienta eligió. Vacío = presta todos.
+      // `serviceIds` + `categories` permiten al portal ocultar de una vez a
+      // quien no presta lo que la clienta eligió (regla en
+      // lib/manicuristServices.js, espejada en el cliente).
       manicurists: manicurists.map((m) => ({
         id: m.id,
         name: m.name,
         color: m.color,
         serviceIds: m.services.map((s) => s.serviceId),
+        categories: m.categories.map((c) => c.category),
       })),
     });
   } catch (err) {
@@ -189,7 +199,7 @@ router.get('/availability', readLimiter, async (req, res) => {
 
     const services = await req.prisma.service.findMany({
       where: { id: { in: serviceIds } },
-      select: { id: true, durationMinutes: true },
+      select: { id: true, durationMinutes: true, category: true },
     });
     if (services.length !== serviceIds.length) {
       return fail(res, 400, 'SERVICE_NOT_FOUND', 'Alguno de los servicios ya no está disponible.');
@@ -199,7 +209,7 @@ router.get('/availability', readLimiter, async (req, res) => {
     // Solo son candidatas las que prestan TODOS los servicios elegidos.
     const wantsAny = !manicuristId || manicuristId === 'any';
     const candidates = await req.prisma.manicurist.findMany({
-      where: candidateWhere({ manicuristId, serviceIds }),
+      where: candidateWhere({ manicuristId, services }),
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
     });
@@ -209,7 +219,7 @@ router.get('/availability', readLimiter, async (req, res) => {
         res,
         404,
         'MANICURIST_NOT_FOUND',
-        'La manicurista seleccionada no presta alguno de los servicios elegidos.'
+        'La especialista seleccionada no presta alguno de los servicios elegidos.'
       );
     }
     const base = {
@@ -307,7 +317,7 @@ router.post('/appointments', bookingAttemptLimiter, async (req, res) => {
 
     const services = await req.prisma.service.findMany({
       where: { id: { in: serviceIds } },
-      select: { id: true, name: true, basePrice: true, durationMinutes: true },
+      select: { id: true, name: true, basePrice: true, durationMinutes: true, category: true },
     });
     if (services.length !== serviceIds.length) {
       return fail(res, 400, 'SERVICE_NOT_FOUND', 'Alguno de los servicios ya no está disponible.');
@@ -353,7 +363,7 @@ router.post('/appointments', bookingAttemptLimiter, async (req, res) => {
     // pedidos: el portal ya filtra, pero el cliente no es confiable.
     const wantsAny = !manicuristId || manicuristId === 'any';
     const candidates = await req.prisma.manicurist.findMany({
-      where: candidateWhere({ manicuristId, serviceIds }),
+      where: candidateWhere({ manicuristId, services }),
       select: { id: true, name: true, color: true },
       orderBy: { name: 'asc' },
     });
@@ -364,7 +374,7 @@ router.post('/appointments', bookingAttemptLimiter, async (req, res) => {
         'MANICURIST_NOT_FOUND',
         wantsAny
           ? 'Por ahora no tenemos quien preste esa combinación de servicios. Elige otros servicios.'
-          : 'La manicurista seleccionada no presta alguno de los servicios elegidos.'
+          : 'La especialista seleccionada no presta alguno de los servicios elegidos.'
       );
     }
 

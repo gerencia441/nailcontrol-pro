@@ -1,4 +1,4 @@
-const LABELS = ['Servicios', 'Manicurista', 'Fecha y hora', 'Tus datos', 'Confirmar'];
+const LABELS = ['Servicios', 'Especialista', 'Fecha y hora', 'Tus datos', 'Confirmar'];
 
 export default function StepProgress({ step, total = 5 }) {
   return (

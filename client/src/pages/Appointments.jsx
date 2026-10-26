@@ -10,6 +10,7 @@ import DateTimePicker from '../components/ui/DateTimePicker.jsx';
 import { StatusBadge, PaymentBadge } from '../components/ui/Badge.jsx';
 import { resolveManicuristColor, apptCardStyle } from '../lib/manicuristColors.js';
 import { filterByServices, providesAll } from '../lib/manicuristServices.js';
+import { groupServicesByCategory } from '../lib/serviceCategories.js';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { formatPhoneInput, isValidColombianPhone } from '../lib/phone.js';
 
@@ -33,7 +34,7 @@ function buildWhatsAppLink(appt, services) {
     `Día: ${dia}\n` +
     `Hora: ${hora}\n` +
     `Servicio: ${svcs}\n` +
-    `Manicurista: ${appt.manicurist?.name}\n\n` +
+    `Especialista: ${appt.manicurist?.name}\n\n` +
     'Te estoy confirmando tu cita con estos datos. Por favor, responde «SÍ» a este mensaje ' +
     'para dejar tu espacio oficialmente confirmado.\n' +
     '(Si necesitas realizar algún cambio, me avisas por aquí).';
@@ -541,7 +542,7 @@ export default function Appointments() {
       // deselecciona en vez de dejar el desplegable mostrando a alguien que ya
       // no es una opción válida.
       const chosen = manicurists.find((m) => m.id === cur.manicuristId);
-      const stillValid = !chosen || providesAll(chosen, serviceIds);
+      const stillValid = !chosen || providesAll(chosen, services.filter((s) => serviceIds.includes(s.id)), services);
       return { ...cur, serviceIds, manicuristId: stillValid ? cur.manicuristId : '' };
     });
   };
@@ -574,8 +575,8 @@ export default function Appointments() {
   const selectedServicesTotal = getServicesTotal(selectedServices);
   const selectedServicesDur   = getServicesDur(selectedServices);
 
-  // Solo las manicuristas que prestan TODOS los servicios marcados.
-  const eligibleManicurists = filterByServices(manicurists, apptForm.serviceIds);
+  // Solo las especialistas que prestan TODOS los servicios marcados.
+  const eligibleManicurists = filterByServices(manicurists, selectedServices, services);
   const hiddenManicurists   = manicurists.length - eligibleManicurists.length;
 
   return (
@@ -749,7 +750,7 @@ export default function Appointments() {
                     <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                       {appt.status === 'PENDING' && (
                         <>
-                          {/* Confirmar cita: admin puede togglear, manicurista solo ve */}
+                          {/* Confirmar cita: admin puede togglear, especialista solo ve */}
                           {isAdmin ? (
                             <button
                               onClick={(e) => toggleConfirmed(appt, e)}
@@ -864,14 +865,23 @@ export default function Appointments() {
 
           <div className="flex flex-col gap-1.5">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Servicios *</span>
-            <div className="max-h-44 overflow-y-auto rounded-xl border border-gray-200 bg-white divide-y divide-gray-50">
-              {services.map((s) => (
-                <label key={s.id} htmlFor={`appt-svc-${s.id}`} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors">
-                  <input id={`appt-svc-${s.id}`} type="checkbox" checked={apptForm.serviceIds.includes(s.id)}
-                    onChange={() => toggleService(s.id)} className="accent-blush-500" />
-                  <span className="flex-1 text-sm text-gray-700">{s.name}</span>
-                  <span className="text-xs font-semibold text-emerald-600">{formatCurrency(s.basePrice)}</span>
-                </label>
+            <div className="max-h-56 overflow-y-auto rounded-xl border border-gray-200 bg-white">
+              {groupServicesByCategory(services).map((cat) => (
+                <div key={cat.value}>
+                  <div className="sticky top-0 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-600">
+                    <cat.Icon size={12} /> {cat.label}
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {cat.services.map((s) => (
+                      <label key={s.id} htmlFor={`appt-svc-${s.id}`} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors">
+                        <input id={`appt-svc-${s.id}`} type="checkbox" checked={apptForm.serviceIds.includes(s.id)}
+                          onChange={() => toggleService(s.id)} className="accent-blush-500" />
+                        <span className="flex-1 text-sm text-gray-700">{s.name}</span>
+                        <span className="text-xs font-semibold text-emerald-600">{formatCurrency(s.basePrice)}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
             <div className="flex items-center justify-between text-xs text-gray-400">
@@ -881,14 +891,14 @@ export default function Appointments() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <Select label="Manicurista *" id="appt-manicurist" value={apptForm.manicuristId} required
+            <Select label="Especialista *" id="appt-manicurist" value={apptForm.manicuristId} required
               onChange={(e) => setApptForm({ ...apptForm, manicuristId: e.target.value })}>
               <option value="">
                 {apptForm.serviceIds.length === 0
                   ? 'Selecciona primero los servicios...'
                   : eligibleManicurists.length === 0
                     ? 'Ninguna presta estos servicios'
-                    : 'Seleccionar manicurista...'}
+                    : 'Seleccionar especialista...'}
               </option>
               {eligibleManicurists.map((m) => (
                 <option key={m.id} value={m.id}>{m.name} ({m.commissionPercentage}%)</option>
@@ -896,12 +906,12 @@ export default function Appointments() {
             </Select>
             {eligibleManicurists.length === 0 && apptForm.serviceIds.length > 0 ? (
               <p className="text-xs text-red-500">
-                Ninguna manicurista presta esa combinación de servicios. Ajusta los servicios o
-                asigna el servicio a alguien en la sección Manicuristas.
+                Ninguna especialista presta esa combinación de servicios. Ajusta los servicios o
+                asigna el servicio a alguien en la sección Especialistas.
               </p>
             ) : hiddenManicurists > 0 ? (
               <p className="text-xs text-gray-400">
-                {hiddenManicurists === 1 ? 'Se ocultó 1 manicurista' : `Se ocultaron ${hiddenManicurists} manicuristas`} que
+                {hiddenManicurists === 1 ? 'Se ocultó 1 especialista' : `Se ocultaron ${hiddenManicurists} especialistas`} que
                 no prestan los servicios seleccionados.
               </p>
             ) : null}
@@ -1017,7 +1027,7 @@ export default function Appointments() {
               style={{ borderLeft: `4px solid ${resolveManicuristColor(detailsTarget.manicurist)}` }}>
               {[
                 ['Clienta',     detailsTarget.client?.name],
-                ['Manicurista', detailsTarget.manicurist?.name],
+                ['Especialista', detailsTarget.manicurist?.name],
                 ['Fecha',       formatDateTime(detailsTarget.date)],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between items-center">

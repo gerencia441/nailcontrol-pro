@@ -20,9 +20,9 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
       },
       manifest: {
-        name: 'NailControl Pro',
-        short_name: 'NailControl',
-        description: 'Gestión profesional de citas de uñas',
+        name: 'BeautyControl Pro',
+        short_name: 'BeautyControl',
+        description: 'Gestión profesional de citas de belleza',
         theme_color: '#ffffff',
         icons: [
           {

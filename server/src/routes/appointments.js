@@ -3,22 +3,29 @@ const { bogotaDateTimeToUtc, bogotaDayRangeToUtc } = require('../lib/bogotaTime'
 const { normalizeColombianPhone } = require('../lib/phone');
 const { findSchedulingConflict } = require('../lib/scheduling');
 const { INCLUDE_FULL, mapAppointment } = require('../lib/appointmentShape');
-const { providesAll } = require('../lib/manicuristServices');
+const { PROVIDER_SELECT, providesAll } = require('../lib/manicuristServices');
+const { allocatePaid, singleCategory } = require('../lib/serviceCategories');
 const googleCal = require('../lib/googleCalendar');
 const router = Router();
 
-// Devuelve un mensaje de error si la manicurista no presta todos los servicios
+// Devuelve un mensaje de error si la especialista no presta todos los servicios
 // pedidos, o null si la combinación es válida. La UI ya filtra el desplegable;
 // esto cierra la puerta a peticiones directas y a datos que cambiaron entre
 // medias (p. ej. se le quitó un servicio después de abrir el formulario).
 async function serviceMismatchError(prisma, manicuristId, serviceIds) {
   if (!manicuristId || !serviceIds || serviceIds.length === 0) return null;
-  const manicurist = await prisma.manicurist.findUnique({
-    where: { id: manicuristId },
-    select: { name: true, services: { select: { serviceId: true } } },
-  });
-  if (!manicurist) return 'La manicurista seleccionada no existe.';
-  if (providesAll(manicurist, serviceIds)) return null;
+  const [manicurist, services] = await Promise.all([
+    prisma.manicurist.findUnique({
+      where: { id: manicuristId },
+      select: { name: true, ...PROVIDER_SELECT },
+    }),
+    prisma.service.findMany({
+      where: { id: { in: serviceIds } },
+      select: { id: true, category: true },
+    }),
+  ]);
+  if (!manicurist) return 'La especialista seleccionada no existe.';
+  if (providesAll(manicurist, services)) return null;
   return `${manicurist.name} no presta alguno de los servicios seleccionados.`;
 }
 
@@ -109,7 +116,7 @@ router.post('/', async (req, res) => {
     const conflict = await findSchedulingConflict(req.prisma, { manicuristId, start, end });
     if (conflict) {
       return res.status(400).json({
-        error: 'No se puede agendar: la manicurista ya tiene una cita programada en ese horario.',
+        error: 'No se puede agendar: la especialista ya tiene una cita programada en ese horario.',
       });
     }
 
@@ -212,6 +219,20 @@ router.patch('/:id/complete', async (req, res) => {
         include: INCLUDE_FULL,
       });
 
+      // Congela categoría y parte del cobro de cada servicio para el reporte
+      // por categoría (ver AppointmentService en schema.prisma).
+      const amounts = allocatePaid(services, paid);
+      await Promise.all(
+        appt.services.map((item, i) =>
+          tx.appointmentService.update({
+            where: {
+              appointmentId_serviceId: { appointmentId: item.appointmentId, serviceId: item.serviceId },
+            },
+            data: { category: item.service.category, amount: amounts[i] },
+          })
+        )
+      );
+
       const finance = await tx.finance.create({
         data: {
           type: 'INCOME',
@@ -228,6 +249,7 @@ router.patch('/:id/complete', async (req, res) => {
           // Guardar el % de comisión vigente para que cambios futuros no
           // alteren el cálculo de comisiones históricas.
           commissionPercentage: appt.manicurist?.commissionPercentage ?? null,
+          serviceCategory: singleCategory(services),
         },
       });
 
@@ -356,7 +378,7 @@ router.patch('/:id', async (req, res) => {
       });
       if (conflict) {
         return res.status(400).json({
-          error: 'No se puede agendar: la manicurista ya tiene una cita programada en ese horario.',
+          error: 'No se puede agendar: la especialista ya tiene una cita programada en ese horario.',
         });
       }
     }
@@ -397,7 +419,7 @@ router.delete('/:id', async (req, res) => {
     const existing = await req.prisma.appointment.findUnique({ where: { id: req.params.id } });
     if (existing?.status === 'COMPLETED') {
       return res.status(400).json({
-        error: 'No se puede eliminar una cita completada porque su ingreso quedaría sin manicurista. Elimina primero el registro de ingreso desde Finanzas.',
+        error: 'No se puede eliminar una cita completada porque su ingreso quedaría sin especialista. Elimina primero el registro de ingreso desde Finanzas.',
       });
     }
 

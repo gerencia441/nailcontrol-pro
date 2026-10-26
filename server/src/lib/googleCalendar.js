@@ -18,7 +18,7 @@ function buildEventFields(appt) {
 
   const serviceNames = services.map((s) => s.name).join(', ') || 'Cita';
   const phone = appt.client?.phone ? `Teléfono: ${appt.client.phone}` : '';
-  const description = [`Servicios: ${serviceNames}`, phone, `Manicurista: ${appt.manicurist?.name || ''}`]
+  const description = [`Servicios: ${serviceNames}`, phone, `Especialista: ${appt.manicurist?.name || ''}`]
     .filter(Boolean)
     .join('\n');
 

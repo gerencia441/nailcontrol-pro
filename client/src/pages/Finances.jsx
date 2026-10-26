@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, TrendingUp, TrendingDown, BarChart3, Landmark, Wallet, CreditCard } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { SERVICE_CATEGORIES, categoryInfo } from '../lib/serviceCategories.js';
 import Button from '../components/ui/Button.jsx';
 import Modal from '../components/ui/Modal.jsx';
 import Input from '../components/ui/Input.jsx';
@@ -44,7 +45,7 @@ function isoWeekToDateInput(value) {
 
 const EMPTY_FORM = {
   type: 'EXPENSE', amount: '', description: '',
-  date: toLocalDateInput(new Date()), paymentMethod: '', expenseCategory: '',
+  date: toLocalDateInput(new Date()), paymentMethod: '', expenseCategory: '', serviceCategory: '',
 };
 
 const paymentLabels = {
@@ -65,6 +66,92 @@ function ExpenseCategoryBadge({ category }) {
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${expenseCategoryStyles[category] || 'bg-gray-100 text-gray-500'}`}>
       {expenseCategoryLabels[category] || category}
     </span>
+  );
+}
+
+// Categoría de servicio (manicure, cejas...) de un registro financiero.
+function ServiceCategoryBadge({ category }) {
+  if (!category) return null;
+  const { label, Icon } = categoryInfo(category);
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blush-50 text-blush-600">
+      <Icon size={11} /> {label}
+    </span>
+  );
+}
+
+// Balance de cada categoría de servicio en el periodo: lo facturado, lo que se
+// lleva cada parte y lo gastado en sus insumos. Solo vista de administrador.
+function CategoryBalance({ report }) {
+  const byCat = report.byServiceCategory;
+  if (!byCat) return null;
+  const rows = SERVICE_CATEGORIES
+    .map((c) => ({ ...c, ...byCat[c.value] }))
+    .filter((r) => r.billed > 0 || r.suppliesSpent > 0 || r.otherExpenses > 0);
+
+  return (
+    <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card overflow-x-auto">
+      <h3 className="section-title mb-1">Balance por Categoría</h3>
+      <p className="text-xs text-gray-400 mb-4">
+        Lo cobrado en cada cita se reparte entre sus servicios según su precio base. Los insumos
+        gastados son los egresos imputados a cada categoría.
+      </p>
+      {rows.length === 0 ? (
+        <p className="text-sm text-gray-400">No hay citas completadas ni egresos por categoría en este periodo.</p>
+      ) : (
+        <table className="w-full text-sm min-w-[640px]">
+          <thead>
+            <tr className="border-b border-gray-100">
+              <th className="text-left py-2 table-header">Categoría</th>
+              <th className="text-right py-2 table-header">Citas</th>
+              <th className="text-right py-2 table-header">Facturado</th>
+              <th className="text-right py-2 table-header">Comisiones</th>
+              <th className="text-right py-2 table-header">Fondo insumos</th>
+              <th className="text-right py-2 table-header">Insumos gastados</th>
+              <th className="text-right py-2 table-header">Caja estudio</th>
+              <th className="text-right py-2 table-header">Neto categoría</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.value} className="border-b border-gray-50 last:border-0">
+                <td className="py-3 text-gray-700">
+                  <span className="inline-flex items-center gap-1.5 font-medium"><r.Icon size={13} className="text-blush-500" /> {r.label}</span>
+                </td>
+                <td className="py-3 text-right text-gray-500">{r.appointmentCount}</td>
+                <td className="py-3 text-right font-semibold text-emerald-600">{formatCurrency(r.billed)}</td>
+                <td className="py-3 text-right text-mauve-600">-{formatCurrency(r.commissions)}</td>
+                <td className="py-3 text-right text-amber-600" title={`${Math.round(r.supplyFundRate * 100)}% de lo facturado`}>
+                  {formatCurrency(r.fondoInsumos)}
+                </td>
+                <td className={`py-3 text-right ${r.suppliesSpent > r.fondoInsumos ? 'text-blush-600 font-semibold' : 'text-amber-700'}`}>
+                  {formatCurrency(r.suppliesSpent)}
+                </td>
+                <td className="py-3 text-right text-sky-600">{formatCurrency(r.cajaEstudio)}</td>
+                <td className={`py-3 text-right font-bold ${r.net >= 0 ? 'text-gray-800' : 'text-blush-600'}`}>
+                  {formatCurrency(r.net)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <div className="mt-3 space-y-1 text-xs text-gray-400">
+        <p>Neto categoría = facturado − comisiones − insumos y otros egresos de esa categoría.</p>
+        {report.generalExpenses > 0 && (
+          <p>
+            {formatCurrency(report.generalExpenses)} en egresos generales del salón (sin categoría de
+            servicio) no se imputan a ninguna categoría.
+          </p>
+        )}
+        {report.incomeWithoutAppointment > 0 && (
+          <p>
+            {formatCurrency(report.incomeWithoutAppointment)} en ingresos sin cita asociada no tienen
+            categoría y no aparecen en esta tabla.
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -169,7 +256,7 @@ function FundDistribution({ report }) {
           <span className="text-sky-500">{formatCurrency(billedAdmin * 0.4)}</span>
         </div>
         <div className="flex justify-between py-1 pl-4 text-xs">
-          <span className="text-gray-400">25% de lo facturado por manicuristas ({formatCurrency(billedManicurist)})</span>
+          <span className="text-gray-400">25% de lo facturado por especialistas ({formatCurrency(billedManicurist)})</span>
           <span className="text-sky-500">{formatCurrency(billedManicurist * 0.25)}</span>
         </div>
         <div className="flex justify-between py-2.5 border-t-2 border-gray-200 mt-2">
@@ -193,7 +280,7 @@ function FundDistribution({ report }) {
             {sinCita > 0 && (
               <li>
                 Ingresos sin cita asociada: {formatCurrency(sinCita)}. Suman al total pero no a
-                lo facturado por ninguna manicurista, así que no generan ni comisión ni Caja
+                lo facturado por ninguna especialista, así que no generan ni comisión ni Caja
                 Estudio. Son de mayo a julio de 2026, cuando la agenda aún no se usaba de forma
                 sistemática; desde agosto no hay ninguno.
               </li>
@@ -212,7 +299,7 @@ function ReportView({ report, isAdmin, pendingCommissions = [], onPayCommission 
   const pendingMap = Object.fromEntries(pendingCommissions.map((p) => [p.id, p]));
 
   if (!isAdmin) {
-    // Vista manicurista: solo sus ingresos y su comisión
+    // Vista especialista: solo sus ingresos y su comisión
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
@@ -335,6 +422,8 @@ function ReportView({ report, isAdmin, pendingCommissions = [], onPayCommission 
 
       <FundDistribution report={report} />
 
+      <CategoryBalance report={report} />
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
           <h3 className="section-title mb-3">Ingresos por Método de Pago</h3>
@@ -369,14 +458,14 @@ function ReportView({ report, isAdmin, pendingCommissions = [], onPayCommission 
       </div>
 
       <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card overflow-x-auto">
-        <h3 className="section-title mb-3">Liquidación de Manicuristas</h3>
+        <h3 className="section-title mb-3">Liquidación de Especialistas</h3>
         {report.manicuristLiquidation.length === 0 ? (
           <p className="text-sm text-gray-400">No hay citas completadas en este periodo.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="text-left py-2 table-header">Manicurista</th>
+                <th className="text-left py-2 table-header">Especialista</th>
                 <th className="text-right py-2 table-header">Citas</th>
                 <th className="text-right py-2 table-header">Total cobrado</th>
                 <th className="text-right py-2 table-header">% Com.</th>
@@ -467,6 +556,7 @@ function ReportView({ report, isAdmin, pendingCommissions = [], onPayCommission 
                     <div className="flex items-center gap-1.5">
                       {f.type === 'INCOME' ? 'Ingreso' : 'Egreso'}
                       <ExpenseCategoryBadge category={f.expenseCategory} />
+                      <ServiceCategoryBadge category={f.serviceCategory} />
                     </div>
                   </td>
                   <td className={`py-3 text-right font-semibold ${f.type === 'INCOME' ? 'text-emerald-600' : 'text-blush-500'}`}>
@@ -550,6 +640,7 @@ export default function Finances() {
         ...form,
         paymentMethod: form.paymentMethod || null,
         expenseCategory: form.type === 'EXPENSE' ? (form.expenseCategory || null) : null,
+        serviceCategory: form.type === 'EXPENSE' ? (form.serviceCategory || null) : null,
       });
       setModalOpen(false);
       setForm(EMPTY_FORM);
@@ -699,6 +790,7 @@ export default function Finances() {
                             </span>
                           )}
                           <ExpenseCategoryBadge category={f.expenseCategory} />
+                          <ServiceCategoryBadge category={f.serviceCategory} />
                         </div>
                       </td>
                       <td className="px-5 py-3"><PaymentBadge method={f.paymentMethod} /></td>
@@ -854,7 +946,7 @@ export default function Finances() {
       >
         {payModal && (
           <form onSubmit={handlePayCommission} className="space-y-4">
-            {/* Encabezado con manicurista */}
+            {/* Encabezado con especialista */}
             <div className="flex items-center gap-3 p-3 rounded-xl bg-mauve-50 border border-mauve-100">
               {payModal.color && (
                 <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: payModal.color }} />
@@ -941,7 +1033,7 @@ export default function Finances() {
           <Select
             label="Tipo *" id="fin-type"
             value={form.type}
-            onChange={(e) => setForm({ ...form, type: e.target.value, expenseCategory: '' })}
+            onChange={(e) => setForm({ ...form, type: e.target.value, expenseCategory: '', serviceCategory: '' })}
           >
             <option value="INCOME">Ingreso</option>
             <option value="EXPENSE">Egreso</option>
@@ -958,6 +1050,23 @@ export default function Finances() {
               <option value="FIXED">Gastos Fijos</option>
               <option value="OTHER">Otro</option>
             </Select>
+          )}
+          {form.type === 'EXPENSE' && (
+            <div className="flex flex-col gap-1">
+              <Select
+                label="¿A qué servicios corresponde?" id="fin-service-category"
+                value={form.serviceCategory}
+                onChange={(e) => setForm({ ...form, serviceCategory: e.target.value })}
+              >
+                <option value="">General del salón</option>
+                {SERVICE_CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </Select>
+              <p className="text-xs text-gray-400">
+                Por ejemplo, insumos de pestañas → Pestañas. Así se descuentan del balance de esa categoría.
+              </p>
+            </div>
           )}
           <Input
             label="Descripción *" id="fin-desc"

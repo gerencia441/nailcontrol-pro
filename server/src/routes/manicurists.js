@@ -1,12 +1,21 @@
 const { Router } = require('express');
+const { parseCategories } = require('../lib/serviceCategories');
 const router = Router();
 
-const INCLUDE_SERVICES = { services: { select: { serviceId: true } } };
+const INCLUDE_SERVICES = {
+  services: { select: { serviceId: true } },
+  categories: { select: { category: true } },
+};
 
-// Aplana la junction a un array de ids, que es lo que consume el cliente.
-// Lista vacía = presta todos los servicios (ver lib/manicuristServices.js).
+// Aplana las junctions a arrays planos, que es lo que consume el cliente.
+// Qué presta cada especialista según ambos: ver lib/manicuristServices.js.
 function mapManicurist(m) {
-  return { ...m, services: undefined, serviceIds: (m.services || []).map((s) => s.serviceId) };
+  return {
+    ...m,
+    services: undefined,
+    serviceIds: (m.services || []).map((s) => s.serviceId),
+    categories: (m.categories || []).map((c) => c.category),
+  };
 }
 
 // Normaliza el payload. `undefined` significa "no tocar la asignación"; un array
@@ -57,6 +66,7 @@ router.post('/', async (req, res) => {
   try {
     const { name, phone, commissionPercentage, color } = req.body;
     const serviceIds = await existingServiceIds(req.prisma, parseServiceIds(req.body.serviceIds));
+    const categories = parseCategories(req.body.categories) || [];
 
     const manicurist = await req.prisma.manicurist.create({
       data: {
@@ -65,6 +75,7 @@ router.post('/', async (req, res) => {
         commissionPercentage: parseFloat(commissionPercentage),
         color: color || null,
         services: { create: serviceIds.map((serviceId) => ({ serviceId })) },
+        categories: { create: categories.map((category) => ({ category })) },
       },
       include: INCLUDE_SERVICES,
     });
@@ -79,6 +90,7 @@ router.put('/:id', async (req, res) => {
     const { name, phone, commissionPercentage, color } = req.body;
     const requested = parseServiceIds(req.body.serviceIds);
     const serviceIds = requested === undefined ? undefined : await existingServiceIds(req.prisma, requested);
+    const categories = parseCategories(req.body.categories);
 
     const manicurist = await req.prisma.manicurist.update({
       where: { id: req.params.id },
@@ -92,6 +104,12 @@ router.put('/:id', async (req, res) => {
           services: {
             deleteMany: {},
             create: serviceIds.map((serviceId) => ({ serviceId })),
+          },
+        }),
+        ...(categories !== undefined && {
+          categories: {
+            deleteMany: {},
+            create: categories.map((category) => ({ category })),
           },
         }),
       },

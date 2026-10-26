@@ -27,8 +27,8 @@ export default function Layout() {
             <Menu size={20} />
           </button>
           <div className="flex items-center gap-2">
-            <img src="/logonailcontrol.png" alt="NailControl" className="w-7 h-7 object-contain" />
-            <span className="text-sm font-semibold text-gray-800">NailControl Pro</span>
+            <img src="/logo.png" alt="BeautyControl" className="w-7 h-7 object-contain" />
+            <span className="text-sm font-semibold text-gray-800">BeautyControl Pro</span>
           </div>
           <NotificationBell
             count={online.count}

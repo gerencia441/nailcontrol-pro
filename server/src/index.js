@@ -80,7 +80,7 @@ if (IS_PROD || hasDist) {
 async function main() {
   await prisma.$connect();
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`NailControl Pro server running on port ${PORT}`);
+    console.log(`BeautyControl Pro server running on port ${PORT}`);
   });
 }
 

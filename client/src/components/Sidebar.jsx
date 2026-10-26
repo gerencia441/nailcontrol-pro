@@ -11,19 +11,19 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-const NailIcon = () => <img src="/logonailcontrol.png" alt="" className="w-5 h-5 object-contain" />;
+const ServicesIcon = () => <img src="/logo.png" alt="" className="w-5 h-5 object-contain" />;
 import { useAuth } from '../lib/AuthContext';
 import NotificationBell from './NotificationBell.jsx';
 
 const ALL_LINKS = [
-  { to: '/dashboard',   label: 'Dashboard',    Icon: LayoutDashboard, adminOnly: false },
-  { to: '/appointments',label: 'Citas',         Icon: CalendarDays,    adminOnly: false },
-  { to: '/clients',     label: 'Clientas',      Icon: Users,           adminOnly: false },
-  { to: '/services',    label: 'Servicios',     Icon: NailIcon,        adminOnly: true  },
-  { to: '/manicurists', label: 'Manicuristas',  Icon: UserCheck,       adminOnly: true  },
-  { to: '/finances',    label: 'Finanzas',      Icon: DollarSign,      adminOnly: false },
-  { to: '/settings',    label: 'Ajustes',       Icon: Settings,        adminOnly: true  },
-  { to: '/users',       label: 'Usuarios',      Icon: ShieldCheck,     adminOnly: true  },
+  { to: '/dashboard',     label: 'Dashboard',     Icon: LayoutDashboard, adminOnly: false },
+  { to: '/appointments',  label: 'Citas',         Icon: CalendarDays,    adminOnly: false },
+  { to: '/clients',       label: 'Clientas',      Icon: Users,           adminOnly: false },
+  { to: '/services',      label: 'Servicios',     Icon: ServicesIcon,    adminOnly: true  },
+  { to: '/especialistas', label: 'Especialistas', Icon: UserCheck,       adminOnly: true  },
+  { to: '/finances',      label: 'Finanzas',      Icon: DollarSign,      adminOnly: false },
+  { to: '/settings',      label: 'Ajustes',       Icon: Settings,        adminOnly: true  },
+  { to: '/users',         label: 'Usuarios',      Icon: ShieldCheck,     adminOnly: true  },
 ];
 
 export default function Sidebar({ isOpen, onClose, online }) {
@@ -48,9 +48,9 @@ export default function Sidebar({ isOpen, onClose, online }) {
         {/* Logo */}
         <div className="px-5 py-5 border-b border-gray-100 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            <img src="/logonailcontrol.png" alt="NailControl" className="w-10 h-10 object-contain" />
+            <img src="/logo.png" alt="BeautyControl" className="w-10 h-10 object-contain" />
             <div>
-              <h1 className="text-sm font-bold text-gray-900 leading-tight">NailControl</h1>
+              <h1 className="text-sm font-bold text-gray-900 leading-tight">BeautyControl</h1>
               <p className="text-[10px] text-gray-400 leading-tight font-medium tracking-wide">PRO</p>
             </div>
           </div>
@@ -102,7 +102,7 @@ export default function Sidebar({ isOpen, onClose, online }) {
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-medium text-gray-700 truncate">{user.username}</p>
-                <p className="text-[10px] text-gray-400">{user.role === 'ADMIN' ? 'Administrador' : 'Manicurista'}</p>
+                <p className="text-[10px] text-gray-400">{user.role === 'ADMIN' ? 'Administrador' : 'Especialista'}</p>
               </div>
             </div>
           )}

@@ -46,7 +46,7 @@ export default function StepConfirm({
           </ul>
         </Row>
 
-        <Row icon={<User size={16} />} label="Manicurista">
+        <Row icon={<User size={16} />} label="Especialista">
           {manicuristName}
         </Row>
 

@@ -1,6 +1,13 @@
-# NailControl Pro — CLAUDE.md
+# BeautyControl Pro — CLAUDE.md
 
-Aplicación de gestión para salón de uñas. Full-stack: React + Vite (frontend) y Express + Prisma + MySQL (backend).
+Aplicación de gestión para salón de belleza (uñas, cejas, pestañas). Antes se llamaba **NailControl Pro**: el repo, los paquetes npm y algunos identificadores internos conservan ese nombre. Full-stack: React + Vite (frontend) y Express + Prisma + MySQL (backend).
+
+## Terminología: "Especialista" vs `Manicurist`
+
+- En la **interfaz** se dice **Especialista** (y "Especialistas" en el menú, ruta `/especialistas`; `/manicurists` redirige). Son todas mujeres por ahora: "Nueva especialista".
+- En el **código, la API y la BD** se conserva el nombre antiguo: modelo `Manicurist`, tablas `ManicuristService`/`ManicuristCategory`, columnas `manicuristId`/`manicuristColor`, rol `UserRole.MANICURIST`, ruta `/api/manicurists`, archivos `Manicurists.jsx`, `manicuristServices.js`, `manicuristColors.js`. **`Manicurist` = Especialista** (de cualquier categoría), no solo las de uñas.
+- Para referirse solo a las de uñas, decir "especialistas de manicure/pedicure" (por categoría), nunca "manicuristas" a secas.
+- Si algún día se renombra en capas inferiores (tablas, columnas, enum, rutas API): requiere migraciones con `RENAME` en producción y mantener `/api/manicurists` como alias mientras haya clientes viejos (PWA en caché). No se hizo en oct-2026 a propósito para no arriesgar datos.
 
 ## Arrancar en local
 
@@ -111,11 +118,13 @@ Proveedor: `mysql`. Los IDs son CUID.
 
 ```
 Client         — id, name, birthDate?, phone?, tags (LongText JSON), technicalNotes?, createdAt, updatedAt
-Service        — id, name, basePrice, durationMinutes, createdAt, updatedAt
-Manicurist     — id, name, phone?, commissionPercentage, color? (hex pastel para identificar sus citas), createdAt, updatedAt
+Service        — id, name, basePrice, durationMinutes, category (ServiceCategory), subcategory?, createdAt, updatedAt
+Manicurist     — (= Especialista) id, name, phone?, commissionPercentage, color? (hex pastel para identificar sus citas), createdAt, updatedAt
+ManicuristCategory — manicuristId + category (categorías asignadas a la especialista)
+ManicuristService  — manicuristId + serviceId (servicios asignados explícitamente)
 Appointment    — id, clientId, manicuristId, date, status, finalPricePaid?, paymentMethod?, googleEventId?
-AppointmentService — appointmentId + serviceId (tabla junction, onDelete Cascade)
-Finance        — id, type (INCOME|EXPENSE), amount, description, date, paymentMethod?
+AppointmentService — appointmentId + serviceId (+ category?, amount? congelados al completar)
+Finance        — id, type (INCOME|EXPENSE), amount, description, date, paymentMethod?, expenseCategory?, serviceCategory?
 User           — id, username (unique), password (bcrypt), googleRefreshToken?, googleCalendarId?
 ```
 
@@ -123,6 +132,22 @@ User           — id, username (unique), password (bcrypt), googleRefreshToken?
 - `AppointmentStatus`: PENDING · COMPLETED · CANCELLED
 - `PaymentMethod`: CASH · BANCOLOMBIA · NEQUI
 - `FinanceType`: INCOME · EXPENSE
+- `ServiceCategory`: MANICURE · PEDICURE · EYEBROWS (cejas) · LASHES (pestañas)
+- `ServiceSubcategory` (solo MANICURE): NATURAL_NAIL_OVERLAY (forrado de uña natural) · ARTIFICIAL_SYSTEMS (sistemas artificiales) · MANICURE_SERVICES (servicios de manicure)
+
+### Categorías de servicio y qué presta cada especialista
+
+Regla (en `server/src/lib/manicuristServices.js`, espejada en `client/src/lib/manicuristServices.js`): una especialista presta el servicio S si
+1. S está en sus servicios explícitos, **o**
+2. tiene la categoría de S asignada **y** no tiene ningún servicio explícito de esa categoría (categoría completa, incluye servicios futuros).
+
+Servicios explícitos de una categoría asignada la **acotan**; de una categoría no asignada son **excepciones** puntuales. Sin categorías ni servicios no presta nada. Una cita la atiende una sola especialista, que debe prestar TODOS sus servicios: uñas + pestañas se agendan como dos citas (pueden solaparse en horario porque el control de choques es por especialista). Catálogo de etiquetas/iconos: `client/src/lib/serviceCategories.js`; validación y % de insumos por categoría (`SUPPLY_FUND_RATE_BY_CATEGORY`, hoy 25% en todas): `server/src/lib/serviceCategories.js`.
+
+### Finanzas por categoría
+
+- Al completar una cita, `finalPricePaid` se reparte entre sus servicios según su precio base y se congela en `AppointmentService.category/amount` (como `commissionPercentage`). Citas completadas antes de esto se reparten al vuelo con los datos actuales del servicio.
+- `Finance.serviceCategory` imputa un egreso a una categoría (p. ej. insumos de pestañas). Null = gasto general del salón.
+- `buildFinancialReport` devuelve `byServiceCategory` (facturado, comisiones, fondo de insumos, insumos gastados, caja estudio, neto) y `generalExpenses`.
 
 ### Convenciones importantes de la BD
 
@@ -143,7 +168,7 @@ Todas requieren `Authorization: Bearer <token>` excepto `/api/auth/login` y `/ap
 | PUT | `/api/clients/:id` | Editar cliente |
 | DELETE | `/api/clients/:id` | Eliminar cliente |
 | GET/POST/PUT/DELETE | `/api/services` | CRUD servicios |
-| GET/POST/PUT/DELETE | `/api/manicurists` | CRUD manicuristas |
+| GET/POST/PUT/DELETE | `/api/manicurists` | CRUD especialistas (`categories[]`, `serviceIds[]`) |
 | GET | `/api/appointments` | Lista citas (query: `?date=YYYY-MM-DD&status=`) |
 | POST | `/api/appointments` | Crear cita + sync Google Calendar |
 | PATCH | `/api/appointments/:id` | Editar cita + sync Calendar |
@@ -189,7 +214,7 @@ El frontend envía fechas como `"YYYY-MM-DDTHH:MM"` (locales Bogotá). El backen
 
 **Formato del evento:**
 - Título: nombre del cliente
-- Descripción: `Servicios: X, Y\nTeléfono: ...\nManicurista: ...`
+- Descripción: `Servicios: X, Y\nTeléfono: ...\nEspecialista: ...`
 - Duración: suma de `durationMinutes` de todos los servicios
 
 **Para obtener un nuevo refresh token** (si expira o se revoca):

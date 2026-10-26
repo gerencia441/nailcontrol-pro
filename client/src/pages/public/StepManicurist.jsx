@@ -59,7 +59,9 @@ export default function StepManicurist({ manicurists, value, onChange, loading }
             Nadie presta esa combinación de servicios
           </p>
           <p className="text-sm text-amber-800 mt-1">
-            Vuelve atrás y ajusta tu selección, o escríbenos y te ayudamos a organizarla.
+            Si elegiste servicios de distintas categorías (por ejemplo uñas y pestañas), resérvalos
+            por separado: cada especialista te atiende en su propia cita y pueden ser a la misma hora.
+            También puedes volver atrás y ajustar tu selección, o escribirnos y te ayudamos.
           </p>
         </div>
       </div>
