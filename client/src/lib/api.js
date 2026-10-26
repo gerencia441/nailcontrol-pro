@@ -44,6 +44,9 @@ export const api = {
   createClient: (data) => request('POST', '/clients', data),
   updateClient: (id, data) => request('PUT', `/clients/${id}`, data),
   deleteClient: (id) => request('DELETE', `/clients/${id}`),
+  createClientNote: (clientId, data) => request('POST', `/clients/${clientId}/notes`, data),
+  updateClientNote: (clientId, noteId, data) => request('PUT', `/clients/${clientId}/notes/${noteId}`, data),
+  deleteClientNote: (clientId, noteId) => request('DELETE', `/clients/${clientId}/notes/${noteId}`),
 
   // Services
   getServices: () => request('GET', '/services'),

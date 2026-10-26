@@ -117,7 +117,8 @@ spa-aplicacion-v2/
 Proveedor: `mysql`. Los IDs son CUID.
 
 ```
-Client         — id, name, birthDate?, phone?, tags (LongText JSON), technicalNotes?, createdAt, updatedAt
+Client         — id, name, birthDate?, phone?, tags (LongText JSON), technicalNotes? (obsoleto, solo respaldo), createdAt, updatedAt
+ClientNote     — id, clientId, type (ClientNoteType), text, authorUserId?, authorName, createdAt, updatedAt
 Service        — id, name, basePrice, durationMinutes, category (ServiceCategory), subcategory?, createdAt, updatedAt
 Manicurist     — (= Especialista) id, name, phone?, commissionPercentage, color? (hex pastel para identificar sus citas), createdAt, updatedAt
 ManicuristCategory — manicuristId + category (categorías asignadas a la especialista)
@@ -132,6 +133,7 @@ User           — id, username (unique), password (bcrypt), googleRefreshToken?
 - `AppointmentStatus`: PENDING · COMPLETED · CANCELLED
 - `PaymentMethod`: CASH · BANCOLOMBIA · NEQUI
 - `FinanceType`: INCOME · EXPENSE
+- `ClientNoteType`: ALLERGY · PREFERENCE · SERVICE · GENERAL
 - `ServiceCategory`: MANICURE · PEDICURE · EYEBROWS (cejas) · LASHES (pestañas)
 - `ServiceSubcategory` (solo MANICURE): NATURAL_NAIL_OVERLAY (forrado de uña natural) · ARTIFICIAL_SYSTEMS (sistemas artificiales) · MANICURE_SERVICES (servicios de manicure)
 
@@ -151,6 +153,9 @@ Servicios explícitos de una categoría asignada la **acotan**; de una categorí
 
 ### Convenciones importantes de la BD
 
+- **Notas de la clienta** = bitácora `ClientNote` (página `/clients/:id`). Todas las ven; cada usuaria edita/borra solo las suyas (`authorUserId`) y la admin todas. Las alergias viajan con cada cita (`INCLUDE_FULL`) y se muestran al abrirla. `Client.technicalNotes` ya no se usa: se migró como primera nota y se conserva como respaldo.
+- **Teléfono de la clienta**: solo se envía a la administradora (`clientForViewer` / `appointmentForViewer` en `server/src/lib/appointmentShape.js`). Toda respuesta nueva con datos de clientas debe pasar por ahí.
+
 - **`Client.tags`** se guarda como JSON serializado en un campo `String @db.LongText`. Siempre pasar por `parseTags()` al leer y `JSON.stringify()` al escribir.
 - **MySQL no soporta `mode: 'insensitive'`** en queries Prisma. No usar esa opción.
 - Las **relaciones en el schema usan nombres en minúscula** (`services`, `service`, `appointment`) para coincidir con el código de las rutas. No cambiarlos a PascalCase.
@@ -167,6 +172,7 @@ Todas requieren `Authorization: Bearer <token>` excepto `/api/auth/login` y `/ap
 | POST | `/api/clients` | Crear cliente |
 | PUT | `/api/clients/:id` | Editar cliente |
 | DELETE | `/api/clients/:id` | Eliminar cliente |
+| POST/PUT/DELETE | `/api/clients/:id/notes[/:noteId]` | Notas de la clienta |
 | GET/POST/PUT/DELETE | `/api/services` | CRUD servicios |
 | GET/POST/PUT/DELETE | `/api/manicurists` | CRUD especialistas (`categories[]`, `serviceIds[]`) |
 | GET | `/api/appointments` | Lista citas (query: `?date=YYYY-MM-DD&status=`) |

@@ -11,6 +11,7 @@ import { StatusBadge, PaymentBadge } from '../components/ui/Badge.jsx';
 import { resolveManicuristColor, apptCardStyle } from '../lib/manicuristColors.js';
 import { filterByServices, providesAll } from '../lib/manicuristServices.js';
 import { groupServicesByCategory } from '../lib/serviceCategories.js';
+import { AllergyAlert } from '../components/ClientNotes.jsx';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { formatPhoneInput, isValidColombianPhone } from '../lib/phone.js';
 
@@ -928,6 +929,7 @@ export default function Appointments() {
       <Modal isOpen={completeModal} onClose={() => setCompleteModal(false)} title="Finalizar Servicio" maxWidth="max-w-sm">
         {completeTarget && (
           <form onSubmit={handleComplete} className="space-y-4">
+            <AllergyAlert notes={completeTarget.client?.notes} />
             <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1.5"
               style={{ borderLeft: `4px solid ${resolveManicuristColor(completeTarget.manicurist)}` }}>
               <div className="flex items-center justify-between gap-2">
@@ -1025,6 +1027,7 @@ export default function Appointments() {
       <Modal isOpen={detailsModal} onClose={() => setDetailsModal(false)} title="Detalles de la Cita" maxWidth="max-w-sm">
         {detailsTarget && (
           <div className="space-y-4">
+            <AllergyAlert notes={detailsTarget.client?.notes} />
             <div className="bg-gray-50 rounded-xl p-4 space-y-2.5 text-sm"
               style={{ borderLeft: `4px solid ${resolveManicuristColor(detailsTarget.manicurist)}` }}>
               <div className="flex justify-between items-center">

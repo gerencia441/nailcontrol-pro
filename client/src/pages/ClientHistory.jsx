@@ -4,6 +4,7 @@ import { ArrowLeft, Phone, Tag, CheckCircle, XCircle, Clock } from 'lucide-react
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { resolveManicuristColor } from '../lib/manicuristColors.js';
+import ClientNotes, { AllergyAlert } from '../components/ClientNotes.jsx';
 
 // Historial completo de una clienta. Página propia (y no un modal) para que la
 // lista use el scroll normal de la página y se vea entera en celular y en web.
@@ -116,12 +117,7 @@ export default function ClientHistory() {
               {client.tags.map((t) => <TagChip key={t} tag={t} />)}
             </div>
           )}
-          {client.technicalNotes && (
-            <div className="mt-3 rounded-xl bg-gray-50 px-3 py-2.5">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Notas técnicas</p>
-              <p className="text-sm text-gray-600 whitespace-pre-line break-words">{client.technicalNotes}</p>
-            </div>
-          )}
+          <AllergyAlert notes={client.notes} className="mt-3" />
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -131,6 +127,9 @@ export default function ClientHistory() {
           <Stat label="Última visita" value={lastVisit ? formatApptDate(lastVisit) : '—'} tone="bg-gray-50 text-gray-700" />
         </div>
       </div>
+
+      <ClientNotes clientId={client.id} notes={client.notes || []}
+        onChange={(notes) => setClient((c) => ({ ...c, notes }))} />
 
       {/* Historial */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 sm:p-5">

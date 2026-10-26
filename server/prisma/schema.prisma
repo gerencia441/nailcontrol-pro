@@ -13,10 +13,34 @@ model Client {
   birthDate      DateTime?
   phone          String?       @unique
   tags           String        @db.LongText
+  // Reemplazado por ClientNote (bitácora). Se conserva como respaldo: la
+  // migración 20261026140000_add_client_notes lo copió como primera nota y la
+  // interfaz ya no lo edita ni lo muestra.
   technicalNotes String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   appointments   Appointment[]
+  notes          ClientNote[]
+}
+
+// Bitácora de notas de la clienta (alergias, preferencias...). Visible para
+// todas las especialistas; cada una edita/borra solo las suyas y la
+// administradora todas (ver server/src/routes/clients.js).
+model ClientNote {
+  id           String         @id @default(cuid())
+  clientId     String
+  type         ClientNoteType @default(GENERAL)
+  text         String         @db.Text
+  // Null en notas migradas del antiguo technicalNotes: solo la admin las edita.
+  authorUserId String?
+  // Nombre congelado al escribir la nota, para que siga legible aunque se
+  // borre o renombre la usuaria.
+  authorName   String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
 }
 
 model Service {
@@ -210,6 +234,13 @@ enum ServiceSubcategory {
   NATURAL_NAIL_OVERLAY // Forrado de uña natural
   ARTIFICIAL_SYSTEMS   // Sistemas artificiales
   MANICURE_SERVICES    // Servicios de manicure
+}
+
+enum ClientNoteType {
+  ALLERGY    // Alergia
+  PREFERENCE // Preferencia
+  SERVICE    // Servicio
+  GENERAL    // General
 }
 
 enum UserRole {

@@ -3,6 +3,35 @@ const { normalizeColombianPhone } = require('../lib/phone');
 const { isAdminViewer, clientForViewer } = require('../lib/appointmentShape');
 const router = Router();
 
+const NOTE_TYPES = ['ALLERGY', 'PREFERENCE', 'SERVICE', 'GENERAL'];
+const MAX_NOTE_LENGTH = 2000;
+
+// Las notas las ven todas; cada usuaria edita/borra solo las suyas y la
+// administradora todas. Las migradas (authorUserId null) solo la admin.
+function canEditNote(note, user) {
+  return isAdminViewer(user) || (note.authorUserId != null && note.authorUserId === user?.id);
+}
+
+// Valida el body de una nota. Devuelve `{ error }` o `{ type, text }`.
+function parseNote(body) {
+  const text = String(body?.text ?? '').trim();
+  const type = body?.type || 'GENERAL';
+  if (!text) return { error: 'La nota no puede estar vacía.' };
+  if (text.length > MAX_NOTE_LENGTH) return { error: `La nota no puede superar ${MAX_NOTE_LENGTH} caracteres.` };
+  if (!NOTE_TYPES.includes(type)) return { error: 'Tipo de nota inválido.' };
+  return { type, text };
+}
+
+// Nombre visible de quien escribe: el de su ficha de especialista si está
+// vinculada, o su usuario.
+async function authorNameOf(prisma, user) {
+  if (user?.manicuristId) {
+    const m = await prisma.manicurist.findUnique({ where: { id: user.manicuristId }, select: { name: true } });
+    if (m?.name) return m.name.trim();
+  }
+  return user?.username || 'Usuario';
+}
+
 function parseTags(client) {
   if (!client) return client;
   try {
@@ -44,6 +73,7 @@ router.get('/:id', async (req, res) => {
           },
           orderBy: { date: 'desc' },
         },
+        notes: { orderBy: { createdAt: 'desc' } },
       },
     });
     if (!client) return res.status(404).json({ error: 'Not found' });
@@ -137,6 +167,64 @@ router.put('/:id', async (req, res) => {
     if (err.code === 'P2002') {
       return res.status(400).json({ error: 'Ya existe un cliente con este número de teléfono.' });
     }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/notes', async (req, res) => {
+  try {
+    const parsed = parseNote(req.body);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const client = await req.prisma.client.findUnique({ where: { id: req.params.id }, select: { id: true } });
+    if (!client) return res.status(404).json({ error: 'Not found' });
+    const note = await req.prisma.clientNote.create({
+      data: {
+        clientId: client.id,
+        type: parsed.type,
+        text: parsed.text,
+        authorUserId: req.user.id,
+        authorName: await authorNameOf(req.prisma, req.user),
+      },
+    });
+    res.status(201).json(note);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/:id/notes/:noteId', async (req, res) => {
+  try {
+    const parsed = parseNote(req.body);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const note = await req.prisma.clientNote.findFirst({
+      where: { id: req.params.noteId, clientId: req.params.id },
+    });
+    if (!note) return res.status(404).json({ error: 'Not found' });
+    if (!canEditNote(note, req.user)) {
+      return res.status(403).json({ error: 'Solo puedes editar tus propias notas.' });
+    }
+    const updated = await req.prisma.clientNote.update({
+      where: { id: note.id },
+      data: { type: parsed.type, text: parsed.text },
+    });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/:id/notes/:noteId', async (req, res) => {
+  try {
+    const note = await req.prisma.clientNote.findFirst({
+      where: { id: req.params.noteId, clientId: req.params.id },
+    });
+    if (!note) return res.status(404).json({ error: 'Not found' });
+    if (!canEditNote(note, req.user)) {
+      return res.status(403).json({ error: 'Solo puedes eliminar tus propias notas.' });
+    }
+    await req.prisma.clientNote.delete({ where: { id: note.id } });
+    res.status(204).end();
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

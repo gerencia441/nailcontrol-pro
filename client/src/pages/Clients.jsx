@@ -8,7 +8,9 @@ import Input from '../components/ui/Input.jsx';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { formatPhoneInput, isValidColombianPhone } from '../lib/phone.js';
 
-const EMPTY_FORM = { name: '', phone: '', birthDate: '', tags: '', technicalNotes: '' };
+// Las notas (alergias, preferencias...) se gestionan en el historial de la
+// clienta (ClientNotes), no en este formulario.
+const EMPTY_FORM = { name: '', phone: '', birthDate: '', tags: '' };
 
 
 function TagChip({ tag }) {
@@ -42,7 +44,7 @@ export default function Clients() {
     setForm({
       name: c.name, phone: c.phone || '',
       birthDate: c.birthDate ? c.birthDate.slice(0, 10) : '',
-      tags: (c.tags || []).join(', '), technicalNotes: c.technicalNotes || '',
+      tags: (c.tags || []).join(', '),
     });
     setEditId(c.id); setModalOpen(true);
   };
@@ -125,9 +127,6 @@ export default function Clients() {
                         <Link to={`/clients/${c.id}`} className="block text-sm font-semibold text-gray-800 truncate hover:text-blush-600">
                           {c.name}
                         </Link>
-                        {c.technicalNotes && (
-                          <p className="text-xs text-gray-400 truncate">{c.technicalNotes}</p>
-                        )}
                       </div>
                     </div>
                     {isAdmin && (
@@ -231,14 +230,6 @@ export default function Clients() {
             onChange={(e) => setForm({ ...form, birthDate: e.target.value })} />
           <Input label="Etiquetas (separadas por coma)" id="client-tags" value={form.tags}
             onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="Manicure, Pedicure, Acrílicas" />
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="client-notes" className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notas Técnicas</label>
-            <textarea id="client-notes" value={form.technicalNotes} rows={3}
-              onChange={(e) => setForm({ ...form, technicalNotes: e.target.value })}
-              placeholder="Alergias, preferencias, observaciones..."
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blush-300 focus:border-blush-300 resize-none transition"
-            />
-          </div>
           <div className="flex gap-2 pt-2 justify-between">
             {editId && (
               <Button type="button" variant="danger"

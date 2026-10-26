@@ -3,7 +3,12 @@
 // manicurist.phone, client.technicalNotes). Es apto para uso interno y para
 // googleCalendar, pero NUNCA debe devolverse tal cual en una ruta pública.
 const INCLUDE_FULL = {
-  client: true,
+  // Las alergias de la clienta viajan con la cita para mostrarlas al abrirla.
+  client: {
+    include: {
+      notes: { where: { type: 'ALLERGY' }, orderBy: { createdAt: 'desc' }, select: { id: true, text: true } },
+    },
+  },
   manicurist: true,
   services: {
     include: { service: true },
