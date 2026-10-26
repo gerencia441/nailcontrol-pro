@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Clients from './pages/Clients.jsx';
+import ClientHistory from './pages/ClientHistory.jsx';
 import Services from './pages/Services.jsx';
 import Manicurists from './pages/Manicurists.jsx';
 import Appointments from './pages/Appointments.jsx';
@@ -60,6 +61,7 @@ export default function App() {
       >
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="clients" element={<Clients />} />
+        <Route path="clients/:id" element={<ClientHistory />} />
         <Route path="services" element={<AdminRoute><Services /></AdminRoute>} />
         <Route path="especialistas" element={<AdminRoute><Manicurists /></AdminRoute>} />
         {/* URL anterior a renombrar "manicuristas" a "especialistas" */}

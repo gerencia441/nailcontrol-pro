@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { bogotaDateTimeToUtc, bogotaDayRangeToUtc } = require('../lib/bogotaTime');
 const { normalizeColombianPhone } = require('../lib/phone');
 const { findSchedulingConflict } = require('../lib/scheduling');
-const { INCLUDE_FULL, mapAppointment } = require('../lib/appointmentShape');
+const { INCLUDE_FULL, mapAppointment, appointmentForViewer } = require('../lib/appointmentShape');
 const { PROVIDER_SELECT, providesAll } = require('../lib/manicuristServices');
 const { allocatePaid, singleCategory } = require('../lib/serviceCategories');
 const googleCal = require('../lib/googleCalendar');
@@ -48,7 +48,7 @@ router.get('/', async (req, res) => {
       include: INCLUDE_FULL,
       orderBy: { date: 'asc' },
     });
-    res.json(appointments.map(mapAppointment));
+    res.json(appointments.map((a) => appointmentForViewer(mapAppointment(a), req.user)));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -83,7 +83,10 @@ router.get('/online-pending', async (req, res) => {
       orderBy: { date: 'asc' },
     });
 
-    res.json({ count: appointments.length, appointments: appointments.map(mapAppointment) });
+    res.json({
+      count: appointments.length,
+      appointments: appointments.map((a) => appointmentForViewer(mapAppointment(a), req.user)),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -167,13 +170,13 @@ router.post('/', async (req, res) => {
           data: { googleEventId: eventId },
           include: INCLUDE_FULL,
         });
-        return res.status(201).json(mapAppointment(updated));
+        return res.status(201).json(appointmentForViewer(mapAppointment(updated), req.user));
       }
     } catch (e) {
       console.error('Google sync create error', e.message);
     }
 
-    res.status(201).json(mapAppointment(appointment));
+    res.status(201).json(appointmentForViewer(mapAppointment(appointment), req.user));
   } catch (err) {
     if (err.code === 'P2002') {
       return res.status(400).json({ error: 'Ya existe un cliente con este número de teléfono.' });
@@ -280,7 +283,7 @@ router.patch('/:id/complete', async (req, res) => {
       console.error('Google sync complete error', e.message);
     }
 
-    res.json(result);
+    res.json({ ...result, appointment: appointmentForViewer(result.appointment, req.user) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -404,7 +407,7 @@ router.patch('/:id', async (req, res) => {
       console.error('Google sync update error', e.message);
     }
 
-    res.json(mapAppointment(appointment));
+    res.json(appointmentForViewer(mapAppointment(appointment), req.user));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

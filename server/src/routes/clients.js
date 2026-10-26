@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { normalizeColombianPhone } = require('../lib/phone');
+const { isAdminViewer, clientForViewer } = require('../lib/appointmentShape');
 const router = Router();
 
 function parseTags(client) {
@@ -14,13 +15,16 @@ function parseTags(client) {
 router.get('/', async (req, res) => {
   try {
     const { search } = req.query;
+    // Solo la administradora puede buscar por teléfono: si no, una especialista
+    // podría averiguar a quién pertenece un número aunque no se le muestre.
+    const byPhone = isAdminViewer(req.user) ? [{ phone: { contains: search } }] : [];
     const clients = await req.prisma.client.findMany({
       where: search
-        ? { OR: [{ name: { contains: search } }, { phone: { contains: search } }] }
+        ? { OR: [{ name: { contains: search } }, ...byPhone] }
         : undefined,
       orderBy: { name: 'asc' },
     });
-    res.json(clients.map(parseTags));
+    res.json(clients.map((c) => clientForViewer(parseTags(c), req.user)));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -34,7 +38,9 @@ router.get('/:id', async (req, res) => {
         appointments: {
           include: {
             services: { include: { service: true } },
-            manicurist: true,
+            // Proyección mínima: el historial no necesita el teléfono ni el %
+            // de comisión de la especialista.
+            manicurist: { select: { id: true, name: true, color: true } },
           },
           orderBy: { date: 'desc' },
         },
@@ -47,7 +53,7 @@ router.get('/:id', async (req, res) => {
       const { services, ...rest } = a;
       return { ...rest, services: svcs, service: svcs[0] ?? null };
     });
-    res.json(parsed);
+    res.json(clientForViewer(parsed, req.user));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -77,7 +83,7 @@ router.post('/', async (req, res) => {
         technicalNotes,
       },
     });
-    res.status(201).json(parseTags(client));
+    res.status(201).json(clientForViewer(parseTags(client), req.user));
   } catch (err) {
     if (err.code === 'P2002') {
       return res.status(400).json({ error: 'Ya existe un cliente con este número de teléfono.' });
@@ -90,8 +96,13 @@ router.put('/:id', async (req, res) => {
   try {
     const { name, birthDate, phone, tags, technicalNotes } = req.body;
 
+    // Una especialista no ve ni edita el teléfono: se conserva el guardado.
+    const canEditPhone = isAdminViewer(req.user);
+
     let normalizedPhone;
-    if (phone && String(phone).trim()) {
+    if (!canEditPhone) {
+      normalizedPhone = undefined;
+    } else if (phone && String(phone).trim()) {
       try {
         normalizedPhone = normalizeColombianPhone(phone);
       } catch (e) {
@@ -121,7 +132,7 @@ router.put('/:id', async (req, res) => {
         technicalNotes,
       },
     });
-    res.json(parseTags(client));
+    res.json(clientForViewer(parseTags(client), req.user));
   } catch (err) {
     if (err.code === 'P2002') {
       return res.status(400).json({ error: 'Ya existe un cliente con este número de teléfono.' });

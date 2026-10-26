@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, CheckCircle, XCircle, Clock, UserCheck, Trash2, Pencil, ChevronLeft, ChevronRight, Calendar, MessageCircle, BadgeCheck, Globe } from 'lucide-react';
 import { api } from '../lib/api.js';
 import Button from '../components/ui/Button.jsx';
@@ -931,7 +931,9 @@ export default function Appointments() {
             <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1.5"
               style={{ borderLeft: `4px solid ${resolveManicuristColor(completeTarget.manicurist)}` }}>
               <div className="flex items-center justify-between gap-2">
-                <p className="font-semibold text-gray-800">{completeTarget.client?.name}</p>
+                <Link to={`/clients/${completeTarget.clientId}`} className="font-semibold text-gray-800 hover:text-blush-600 underline-offset-2 hover:underline">
+                  {completeTarget.client?.name}
+                </Link>
                 {completeTarget.confirmed ? (
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200 flex-shrink-0">
                     <BadgeCheck size={10} /> Confirmada
@@ -1025,8 +1027,13 @@ export default function Appointments() {
           <div className="space-y-4">
             <div className="bg-gray-50 rounded-xl p-4 space-y-2.5 text-sm"
               style={{ borderLeft: `4px solid ${resolveManicuristColor(detailsTarget.manicurist)}` }}>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500">Clienta:</span>
+                <Link to={`/clients/${detailsTarget.clientId}`} className="font-medium text-gray-800 hover:text-blush-600 underline-offset-2 hover:underline">
+                  {detailsTarget.client?.name}
+                </Link>
+              </div>
               {[
-                ['Clienta',     detailsTarget.client?.name],
                 ['Especialista', detailsTarget.manicurist?.name],
                 ['Fecha',       formatDateTime(detailsTarget.date)],
               ].map(([label, value]) => (

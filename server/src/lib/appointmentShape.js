@@ -19,4 +19,22 @@ function mapAppointment(appointment) {
   };
 }
 
-module.exports = { INCLUDE_FULL, mapAppointment };
+// Los datos de contacto de la clienta (teléfono) solo los ve la
+// administradora. Se aplica a toda respuesta de la API con datos de clientas;
+// googleCalendar recibe la cita sin filtrar.
+function isAdminViewer(user) {
+  return user?.role === 'ADMIN';
+}
+
+function clientForViewer(client, user) {
+  if (!client || isAdminViewer(user)) return client;
+  const { phone, ...rest } = client;
+  return rest;
+}
+
+function appointmentForViewer(appointment, user) {
+  if (!appointment || isAdminViewer(user)) return appointment;
+  return { ...appointment, client: clientForViewer(appointment.client, user) };
+}
+
+module.exports = { INCLUDE_FULL, mapAppointment, isAdminViewer, clientForViewer, appointmentForViewer };
