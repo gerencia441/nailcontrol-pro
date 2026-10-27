@@ -13,6 +13,13 @@ const INCLUDE_FULL = {
   services: {
     include: { service: true },
   },
+  // Partes del pago (una por forma de pago) y cambios de forma de pago.
+  finances: {
+    where: { type: 'INCOME' },
+    select: { id: true, amount: true, paymentMethod: true },
+    orderBy: { createdAt: 'asc' },
+  },
+  paymentLogs: { orderBy: { createdAt: 'desc' } },
 };
 
 function mapAppointment(appointment) {

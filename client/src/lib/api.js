@@ -67,6 +67,8 @@ export const api = {
   updateAppointment: (id, data) => request('PATCH', `/appointments/${id}`, data),
   completeAppointment: (id, data) =>
     request('PATCH', `/appointments/${id}/complete`, data),
+  updateAppointmentPayment: (id, payments) =>
+    request('PATCH', `/appointments/${id}/payment`, { payments }),
   deleteAppointment: (id) => request('DELETE', `/appointments/${id}`),
   getOnlinePendingAppointments: () => request('GET', '/appointments/online-pending'),
 

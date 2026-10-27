@@ -125,7 +125,8 @@ ManicuristCategory — manicuristId + category (categorías asignadas a la espec
 ManicuristService  — manicuristId + serviceId (servicios asignados explícitamente)
 Appointment    — id, clientId, manicuristId, date, status, finalPricePaid?, paymentMethod?, googleEventId?
 AppointmentService — appointmentId + serviceId (+ category?, amount? congelados al completar)
-Finance        — id, type (INCOME|EXPENSE), amount, description, date, paymentMethod?, expenseCategory?, serviceCategory?
+Finance        — id, type (INCOME|EXPENSE), amount, description, date, paymentMethod?, expenseCategory?, serviceCategory?, appointmentId?
+AppointmentPaymentLog — id, appointmentId, changedByUserId?, changedByName, previous (JSON), next (JSON), createdAt
 User           — id, username (unique), password (bcrypt), googleRefreshToken?, googleCalendarId?
 ```
 
@@ -154,6 +155,7 @@ Servicios explícitos de una categoría asignada la **acotan**; de una categorí
 ### Convenciones importantes de la BD
 
 - **Notas de la clienta** = bitácora `ClientNote` (página `/clients/:id`). Todas las ven; cada usuaria edita/borra solo las suyas (`authorUserId`) y la admin todas. Las alergias viajan con cada cita (`INCLUDE_FULL`) y se muestran al abrirla. `Client.technicalNotes` ya no se usa: se migró como primera nota y se conserva como respaldo.
+- **Pagos de una cita**: un `Finance` INCOME por cada forma de pago, enlazado con `appointmentId` (pago dividido = varios registros; `Appointment.paymentMethod` es null en ese caso). Todo cálculo por forma de pago suma registros de Finance, nunca `Appointment.paymentMethod`. Corregir la forma de pago de una cita completada: `PATCH /api/appointments/:id/payment` (admin o la especialista de la cita; el total no cambia; queda en `AppointmentPaymentLog`). Ingresos antiguos que la migración no pudo enlazar sin ambigüedad quedan con `appointmentId` null y se corrigen desde Finanzas. `PATCH /:id/complete` rechaza citas ya completadas (evita ingresos duplicados).
 - **Teléfono de la clienta**: solo se envía a la administradora (`clientForViewer` / `appointmentForViewer` en `server/src/lib/appointmentShape.js`). Toda respuesta nueva con datos de clientas debe pasar por ahí.
 
 - **`Client.tags`** se guarda como JSON serializado en un campo `String @db.LongText`. Siempre pasar por `parseTags()` al leer y `JSON.stringify()` al escribir.
@@ -178,7 +180,8 @@ Todas requieren `Authorization: Bearer <token>` excepto `/api/auth/login` y `/ap
 | GET | `/api/appointments` | Lista citas (query: `?date=YYYY-MM-DD&status=`) |
 | POST | `/api/appointments` | Crear cita + sync Google Calendar |
 | PATCH | `/api/appointments/:id` | Editar cita + sync Calendar |
-| PATCH | `/api/appointments/:id/complete` | Completar cita + crear Finance + sync Calendar |
+| PATCH | `/api/appointments/:id/complete` | Completar cita + crear Finance (uno por forma de pago: `payments[]`) + sync Calendar |
+| PATCH | `/api/appointments/:id/payment` | Cambiar forma de pago de una cita completada |
 | DELETE | `/api/appointments/:id` | Eliminar + borrar evento Calendar |
 | GET | `/api/finances` | Lista finanzas (query: `?date&type&period`) |
 | POST | `/api/finances` | Crear registro financiero |

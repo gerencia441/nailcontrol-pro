@@ -12,6 +12,7 @@ import { resolveManicuristColor, apptCardStyle } from '../lib/manicuristColors.j
 import { filterByServices, providesAll } from '../lib/manicuristServices.js';
 import { groupServicesByCategory } from '../lib/serviceCategories.js';
 import { AllergyAlert } from '../components/ClientNotes.jsx';
+import PaymentSplitEditor, { normalizeParts, partsError, paymentLabel } from '../components/PaymentSplitEditor.jsx';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { formatPhoneInput, isValidColombianPhone } from '../lib/phone.js';
 
@@ -165,7 +166,25 @@ function OnlineBadge() {
 }
 
 const EMPTY_APPT    = { clientId: '', manicuristId: '', serviceIds: [], date: '', isNewClient: false, newClientName: '', newClientPhone: '' };
-const EMPTY_COMPLETE = { finalPricePaid: '', paymentMethod: 'CASH' };
+const EMPTY_COMPLETE = { finalPricePaid: '', payments: [{ method: 'CASH', amount: '' }] };
+
+// Partes del pago de una cita completada: sus ingresos enlazados o, en citas
+// antiguas sin enlace, la forma de pago única guardada en la cita.
+function paymentPartsOf(appt) {
+  if (appt?.finances?.length) return appt.finances.map((f) => ({ method: f.paymentMethod, amount: f.amount }));
+  if (appt?.paymentMethod) return [{ method: appt.paymentMethod, amount: appt.finalPricePaid }];
+  return [];
+}
+
+const formatLogDate = (d) => new Date(d).toLocaleString('es-CO', {
+  timeZone: 'America/Bogota', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
+});
+
+function describeParts(json) {
+  try {
+    return JSON.parse(json).map((p) => `${paymentLabel(p.method)} ${formatCurrency(p.amount)}`).join(' + ');
+  } catch { return '—'; }
+}
 
 const STATUS_TABS = [
   { key: 'all',       label: 'Todas'      },
@@ -400,7 +419,7 @@ function HourlyCalendar({ appointments, selectedDate, onDateChange, getApptServi
 // ────────────────────────────────────────────────────────────────────────────
 
 export default function Appointments() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const [appointments, setAppointments] = useState([]);
   const [pending,      setPending]      = useState([]);
   const [clients,      setClients]      = useState([]);
@@ -447,6 +466,11 @@ export default function Appointments() {
   const [detailsModal,  setDetailsModal]  = useState(false);
   const [detailsTarget, setDetailsTarget] = useState(null);
 
+  // Cambio de forma de pago de una cita completada.
+  const [payEditOpen,  setPayEditOpen]  = useState(false);
+  const [payEditParts, setPayEditParts] = useState([]);
+  const [payEditing,   setPayEditing]   = useState(false);
+
   const loadAppointments = useCallback(async () => {
     setLoading(true);
     try {
@@ -478,7 +502,7 @@ export default function Appointments() {
 
   const openComplete = (appt) => {
     setCompleteTarget(appt);
-    setCompleteForm({ finalPricePaid: String(getServicesTotal(getApptServices(appt))), paymentMethod: 'CASH' });
+    setCompleteForm({ finalPricePaid: String(getServicesTotal(getApptServices(appt))), payments: [{ method: 'CASH', amount: '' }] });
     setCompleteModal(true);
   };
 
@@ -498,10 +522,45 @@ export default function Appointments() {
   };
 
   const handleComplete = async (e) => {
-    e.preventDefault(); setCompleting(true);
-    try { await api.completeAppointment(completeTarget.id, completeForm); setCompleteModal(false); loadAppointments(); }
+    e.preventDefault();
+    const err = partsError(completeForm.payments, completeForm.finalPricePaid);
+    if (err) { alert(err); return; }
+    setCompleting(true);
+    try {
+      await api.completeAppointment(completeTarget.id, {
+        finalPricePaid: completeForm.finalPricePaid,
+        payments: normalizeParts(completeForm.payments, completeForm.finalPricePaid),
+      });
+      setCompleteModal(false); loadAppointments();
+    }
     catch (err) { alert(err.message); }
     finally { setCompleting(false); }
+  };
+
+  // La administradora y la especialista que atendió la cita (el servidor lo valida igual).
+  const canEditPayment = (appt) =>
+    appt?.status === 'COMPLETED' && (isAdmin || (user?.manicuristId && user.manicuristId === appt.manicuristId));
+
+  const openPayEdit = () => {
+    const parts = paymentPartsOf(detailsTarget);
+    setPayEditParts(parts.length ? parts.map((p) => ({ method: p.method, amount: String(p.amount) })) : [{ method: 'CASH', amount: '' }]);
+    setPayEditOpen(true);
+  };
+
+  const handlePayEdit = async (e) => {
+    e.preventDefault();
+    const total = detailsTarget.finalPricePaid;
+    const err = partsError(payEditParts, total);
+    if (err) { alert(err); return; }
+    setPayEditing(true);
+    try {
+      const res = await api.updateAppointmentPayment(detailsTarget.id, normalizeParts(payEditParts, total));
+      setDetailsTarget(res.appointment);
+      setPayEditOpen(false);
+      loadAppointments();
+      if (res.warning) alert(res.warning);
+    } catch (err) { alert(err.message); }
+    finally { setPayEditing(false); }
   };
 
   const handleCancel = async (id) => {
@@ -999,12 +1058,8 @@ export default function Appointments() {
             <Input label="Valor Real Pagado (COP) *" id="final-price" type="number" min="0" step="1" required
               value={completeForm.finalPricePaid}
               onChange={(e) => setCompleteForm({ ...completeForm, finalPricePaid: e.target.value })} />
-            <Select label="Método de Pago *" id="payment-method" value={completeForm.paymentMethod} required
-              onChange={(e) => setCompleteForm({ ...completeForm, paymentMethod: e.target.value })}>
-              <option value="CASH">Efectivo</option>
-              <option value="BANCOLOMBIA">Bancolombia</option>
-              <option value="NEQUI">Nequi</option>
-            </Select>
+            <PaymentSplitEditor parts={completeForm.payments} total={completeForm.finalPricePaid}
+              onChange={(payments) => setCompleteForm({ ...completeForm, payments })} />
             <div className="flex gap-2 pt-2 justify-between">
               <Button type="button" variant="ghost"
                 onClick={() => { setCompleteModal(false); openEdit(completeTarget); }}>
@@ -1024,7 +1079,7 @@ export default function Appointments() {
       </Modal>
 
       {/* Details Modal */}
-      <Modal isOpen={detailsModal} onClose={() => setDetailsModal(false)} title="Detalles de la Cita" maxWidth="max-w-sm">
+      <Modal isOpen={detailsModal} onClose={() => { setDetailsModal(false); setPayEditOpen(false); }} title="Detalles de la Cita" maxWidth="max-w-sm">
         {detailsTarget && (
           <div className="space-y-4">
             <AllergyAlert notes={detailsTarget.client?.notes} />
@@ -1063,13 +1118,60 @@ export default function Appointments() {
                   <span className="font-semibold text-emerald-600">{formatCurrency(detailsTarget.finalPricePaid)}</span>
                 </div>
               )}
-              {detailsTarget.paymentMethod && (
-                <div className="flex justify-between items-center">
+              {paymentPartsOf(detailsTarget).length > 0 && (
+                <div className="flex justify-between items-start gap-4">
                   <span className="text-gray-500">Método:</span>
-                  <PaymentBadge method={detailsTarget.paymentMethod} />
+                  <div className="flex flex-col items-end gap-1">
+                    {paymentPartsOf(detailsTarget).map((p, i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <PaymentBadge method={p.method} />
+                        {paymentPartsOf(detailsTarget).length > 1 && (
+                          <span className="text-xs font-medium text-gray-600">{formatCurrency(p.amount)}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
+
+            {canEditPayment(detailsTarget) && !payEditOpen && (
+              <Button type="button" variant="secondary" className="w-full justify-center" onClick={openPayEdit}>
+                <Pencil size={14} /> Cambiar forma de pago
+              </Button>
+            )}
+
+            {payEditOpen && (
+              <form onSubmit={handlePayEdit} className="space-y-3 rounded-xl border border-blush-100 bg-blush-25 p-3">
+                <p className="text-xs text-gray-500">
+                  El total cobrado ({formatCurrency(detailsTarget.finalPricePaid)}) no cambia. Finanzas, cierres y
+                  saldos se recalculan con la nueva forma de pago.
+                </p>
+                <PaymentSplitEditor parts={payEditParts} total={detailsTarget.finalPricePaid} onChange={setPayEditParts} />
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="ghost" onClick={() => setPayEditOpen(false)}>Cancelar</Button>
+                  <Button type="submit" disabled={payEditing}>{payEditing ? 'Guardando...' : 'Guardar'}</Button>
+                </div>
+              </form>
+            )}
+
+            {(detailsTarget.paymentLogs || []).length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cambios de forma de pago</p>
+                <ul className="space-y-1.5">
+                  {detailsTarget.paymentLogs.map((log) => (
+                    <li key={log.id} className="text-xs text-gray-500 bg-gray-50 rounded-lg px-2.5 py-2">
+                      <span className="font-medium text-gray-700">{log.changedByName}</span> · {formatLogDate(log.createdAt)}
+                      <div className="mt-0.5">
+                        <span className="line-through">{describeParts(log.previous)}</span>
+                        {' → '}
+                        <span className="font-medium text-gray-700">{describeParts(log.next)}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="flex gap-2 pt-2 justify-between">
               <Button type="button" variant="danger"
                 onClick={() => { if (confirm('¿Eliminar esta cita?')) { handleDeleteAppt(detailsTarget.id); setDetailsModal(false); } }}>

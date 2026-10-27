@@ -108,6 +108,8 @@ model Appointment {
   // para que cambiar el % de la ficha no reescriba los cierres ya cerrados.
   // Null en citas no completadas: se resuelve con el % actual de la ficha.
   commissionPercentage Float?
+  // Forma de pago si se pagó con una sola; null con pago dividido (las partes
+  // son los Finance INCOME enlazados, ver `finances`).
   paymentMethod      PaymentMethod?
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
@@ -115,6 +117,9 @@ model Appointment {
   client             Client               @relation(fields: [clientId], references: [id])
   manicurist         Manicurist           @relation(fields: [manicuristId], references: [id])
   services           AppointmentService[]
+  // Ingresos generados al completarla: uno por forma de pago.
+  finances           Finance[]
+  paymentLogs        AppointmentPaymentLog[]
 
   @@index([clientId], map: "Appointment_clientId_fkey")
   @@index([manicuristId], map: "Appointment_manicuristId_fkey")
@@ -139,8 +144,29 @@ model Finance {
   // pestañas) para el balance por categoría. Null = gasto general del salón.
   // En ingresos de citas se llena si todos sus servicios son de una categoría.
   serviceCategory      ServiceCategory?
+  // Cita que generó este ingreso (null en registros manuales y en ingresos
+  // antiguos que la migración no pudo enlazar sin ambigüedad).
+  appointmentId        String?
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
+  appointment          Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([appointmentId])
+}
+
+// Registro de cambios de forma de pago de citas ya completadas.
+// `previous`/`next` son JSON: [{ "method": "CASH", "amount": 35000 }, ...].
+model AppointmentPaymentLog {
+  id              String      @id @default(cuid())
+  appointmentId   String
+  changedByUserId String?
+  changedByName   String
+  previous        String      @db.Text
+  next            String      @db.Text
+  createdAt       DateTime    @default(now())
+  appointment     Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([appointmentId])
 }
 
 model AppointmentService {

@@ -5,6 +5,7 @@ const { findSchedulingConflict } = require('../lib/scheduling');
 const { INCLUDE_FULL, mapAppointment, appointmentForViewer } = require('../lib/appointmentShape');
 const { PROVIDER_SELECT, providesAll } = require('../lib/manicuristServices');
 const { allocatePaid, singleCategory } = require('../lib/serviceCategories');
+const { parsePayments, appointmentMethodOf, partsOf, balanceWarning } = require('../lib/payments');
 const googleCal = require('../lib/googleCalendar');
 const router = Router();
 
@@ -185,9 +186,14 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Error con código HTTP para cortar una transacción con un 4xx.
+class HttpError extends Error {
+  constructor(status, message) { super(message); this.status = status; }
+}
+
 router.patch('/:id/complete', async (req, res) => {
   try {
-    const { finalPricePaid, paymentMethod } = req.body;
+    const { finalPricePaid } = req.body;
 
     const result = await req.prisma.$transaction(async (tx) => {
       const appt = await tx.appointment.findUnique({
@@ -199,7 +205,10 @@ router.patch('/:id/complete', async (req, res) => {
         },
       });
 
-      if (!appt) throw new Error('Appointment not found');
+      if (!appt) throw new HttpError(404, 'Appointment not found');
+      // Completarla de nuevo duplicaría el ingreso. Para corregir la forma de
+      // pago está PATCH /:id/payment.
+      if (appt.status === 'COMPLETED') throw new HttpError(400, 'Esta cita ya está completada.');
 
       const services = appt.services.map((item) => item.service);
       const serviceTotal = services.reduce((sum, service) => sum + service.basePrice, 0);
@@ -209,18 +218,9 @@ router.patch('/:id/complete', async (req, res) => {
           : parseFloat(finalPricePaid);
       const serviceNames = services.map((service) => service.name).join(' + ');
 
-      const updated = await tx.appointment.update({
-        where: { id: req.params.id },
-        data: {
-          status: 'COMPLETED',
-          finalPricePaid: paid,
-          paymentMethod,
-          // Se congela junto al precio: a partir de aquí los cierres de esta
-          // cita ya no dependen del % que tenga la ficha en el futuro.
-          commissionPercentage: appt.manicurist?.commissionPercentage ?? null,
-        },
-        include: INCLUDE_FULL,
-      });
+      // Una o varias formas de pago (pago dividido): un ingreso por cada una.
+      const payment = parsePayments(req.body, paid);
+      if (payment.error) throw new HttpError(400, payment.error);
 
       // Congela categoría y parte del cobro de cada servicio para el reporte
       // por categoría (ver AppointmentService en schema.prisma).
@@ -236,27 +236,44 @@ router.patch('/:id/complete', async (req, res) => {
         )
       );
 
-      const finance = await tx.finance.create({
+      const finances = [];
+      for (const part of payment.parts) {
+        finances.push(await tx.finance.create({
+          data: {
+            type: 'INCOME',
+            amount: part.amount,
+            description: `${serviceNames} - ${appt.client.name}`,
+            // El ingreso se fecha con la fecha de la cita (no el momento de
+            // marcar "completada") para que el cierre del día lo agrupe en el
+            // mismo día que la cita y el total general coincida con la suma de
+            // los servicios del día.
+            date: appt.date,
+            paymentMethod: part.method,
+            manicuristColor: appt.manicurist?.color || null,
+            manicuristId: appt.manicurist?.id || null,
+            // Guardar el % de comisión vigente para que cambios futuros no
+            // alteren el cálculo de comisiones históricas.
+            commissionPercentage: appt.manicurist?.commissionPercentage ?? null,
+            serviceCategory: singleCategory(services),
+            appointmentId: appt.id,
+          },
+        }));
+      }
+
+      const updated = await tx.appointment.update({
+        where: { id: req.params.id },
         data: {
-          type: 'INCOME',
-          amount: paid,
-          description: `${serviceNames} - ${appt.client.name}`,
-          // El ingreso se fecha con la fecha de la cita (no el momento de
-          // marcar "completada") para que el cierre del día lo agrupe en el
-          // mismo día que la cita y el total general coincida con la suma de
-          // los servicios del día.
-          date: appt.date,
-          paymentMethod,
-          manicuristColor: appt.manicurist?.color || null,
-          manicuristId: appt.manicurist?.id || null,
-          // Guardar el % de comisión vigente para que cambios futuros no
-          // alteren el cálculo de comisiones históricas.
+          status: 'COMPLETED',
+          finalPricePaid: paid,
+          paymentMethod: appointmentMethodOf(payment.parts),
+          // Se congela junto al precio: a partir de aquí los cierres de esta
+          // cita ya no dependen del % que tenga la ficha en el futuro.
           commissionPercentage: appt.manicurist?.commissionPercentage ?? null,
-          serviceCategory: singleCategory(services),
         },
+        include: INCLUDE_FULL,
       });
 
-      return { appointment: mapAppointment(updated), finance };
+      return { appointment: mapAppointment(updated), finance: finances[0], finances };
     });
 
     // After completing the appointment, synchronize calendar event
@@ -284,6 +301,98 @@ router.patch('/:id/complete', async (req, res) => {
     }
 
     res.json({ ...result, appointment: appointmentForViewer(result.appointment, req.user) });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// Corrige la forma de pago de una cita ya completada (p. ej. se cerró como
+// Bancolombia pero la transferencia falló y pagó en efectivo), o la divide en
+// varias. El monto total no cambia. Pueden hacerlo la administradora y la
+// especialista que atendió la cita; cada cambio queda en AppointmentPaymentLog.
+router.patch('/:id/payment', async (req, res) => {
+  try {
+    const appt = await req.prisma.appointment.findUnique({
+      where: { id: req.params.id },
+      include: { finances: { where: { type: 'INCOME' }, orderBy: { createdAt: 'asc' } } },
+    });
+    if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+
+    const isAdmin = req.user.role === 'ADMIN';
+    const isOwn = Boolean(req.user.manicuristId) && req.user.manicuristId === appt.manicuristId;
+    if (!isAdmin && !isOwn) {
+      return res.status(403).json({ error: 'Solo la administradora o la especialista de la cita pueden cambiar la forma de pago.' });
+    }
+    if (appt.status !== 'COMPLETED') {
+      return res.status(400).json({ error: 'Solo se puede cambiar la forma de pago de una cita completada.' });
+    }
+
+    // Sin ingreso enlazado (citas antiguas que la migración no pudo enlazar
+    // con seguridad) no se sabe qué registro corregir.
+    const incomes = appt.finances;
+    const total = Number(appt.finalPricePaid) || 0;
+    const linkedTotal = incomes.reduce((sum, f) => sum + f.amount, 0);
+    if (incomes.length === 0 || Math.abs(linkedTotal - total) > 0.5) {
+      return res.status(409).json({
+        error: 'No se encontró el ingreso de esta cita en Finanzas (cita antigua). Corrígelo desde Finanzas.',
+      });
+    }
+
+    const payment = parsePayments(req.body, total);
+    if (payment.error) return res.status(400).json({ error: payment.error });
+
+    const previous = partsOf(incomes);
+    const same =
+      previous.length === payment.parts.length &&
+      payment.parts.every((p) => previous.some((q) => q.method === p.method && Math.abs(q.amount - p.amount) < 0.5));
+    if (same) return res.status(400).json({ error: 'La forma de pago no cambió.' });
+
+    const author = req.user.manicuristId
+      ? (await req.prisma.manicurist.findUnique({ where: { id: req.user.manicuristId }, select: { name: true } }))?.name
+      : null;
+    const base = incomes[0];
+
+    await req.prisma.$transaction([
+      req.prisma.finance.deleteMany({ where: { id: { in: incomes.map((f) => f.id) } } }),
+      // Se recrean copiando todo lo que no es forma de pago ni monto: fecha,
+      // especialista, % de comisión congelado y categoría. Así cierres,
+      // comisiones y balance por categoría no cambian.
+      ...payment.parts.map((part) =>
+        req.prisma.finance.create({
+          data: {
+            type: 'INCOME',
+            amount: part.amount,
+            description: base.description,
+            date: base.date,
+            paymentMethod: part.method,
+            manicuristColor: base.manicuristColor,
+            manicuristId: base.manicuristId,
+            commissionPercentage: base.commissionPercentage,
+            serviceCategory: base.serviceCategory,
+            appointmentId: appt.id,
+          },
+        })
+      ),
+      req.prisma.appointment.update({
+        where: { id: appt.id },
+        data: { paymentMethod: appointmentMethodOf(payment.parts) },
+      }),
+      req.prisma.appointmentPaymentLog.create({
+        data: {
+          appointmentId: appt.id,
+          changedByUserId: req.user.id || null,
+          changedByName: (author || req.user.username || 'Usuario').trim(),
+          previous: JSON.stringify(previous),
+          next: JSON.stringify(payment.parts),
+        },
+      }),
+    ]);
+
+    const updated = await req.prisma.appointment.findUnique({ where: { id: appt.id }, include: INCLUDE_FULL });
+    res.json({
+      appointment: appointmentForViewer(mapAppointment(updated), req.user),
+      warning: isAdmin ? await balanceWarning(req.prisma, appt.date, previous, payment.parts) : null,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
