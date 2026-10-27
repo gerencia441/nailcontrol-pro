@@ -180,10 +180,26 @@ const formatLogDate = (d) => new Date(d).toLocaleString('es-CO', {
   timeZone: 'America/Bogota', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
 });
 
-function describeParts(json) {
-  try {
-    return JSON.parse(json).map((p) => `${paymentLabel(p.method)} ${formatCurrency(p.amount)}`).join(' + ');
-  } catch { return '—'; }
+const describeParts = (parts = []) =>
+  parts.map((p) => `${paymentLabel(p.method)} ${formatCurrency(p.amount)}`).join(' + ') || '—';
+
+// Filas "antes → después" de una entrada del historial de cambios. Las
+// entradas antiguas guardan solo el array de formas de pago.
+function logChanges(log) {
+  const parse = (json) => {
+    try { const v = JSON.parse(json); return Array.isArray(v) ? { payments: v } : v; } catch { return {}; }
+  };
+  const prev = parse(log.previous), next = parse(log.next);
+  const rows = [];
+  if (prev.amount != null && next.amount != null && Math.abs(prev.amount - next.amount) >= 0.5) {
+    rows.push(['Monto', formatCurrency(prev.amount), formatCurrency(next.amount)]);
+  }
+  if (prev.manicuristId && next.manicuristId && prev.manicuristId !== next.manicuristId) {
+    rows.push(['Especialista', prev.manicuristName, next.manicuristName]);
+  }
+  const before = describeParts(prev.payments), after = describeParts(next.payments);
+  if (before !== after) rows.push(['Pago', before, after]);
+  return rows;
 }
 
 const STATUS_TABS = [
@@ -470,6 +486,10 @@ export default function Appointments() {
   const [payEditOpen,  setPayEditOpen]  = useState(false);
   const [payEditParts, setPayEditParts] = useState([]);
   const [payEditing,   setPayEditing]   = useState(false);
+  // Solo la administradora ("Corregir cita"): monto, especialista y motivo.
+  const [corrAmount,       setCorrAmount]       = useState('');
+  const [corrManicuristId, setCorrManicuristId] = useState('');
+  const [corrReason,       setCorrReason]       = useState('');
 
   const loadAppointments = useCallback(async () => {
     setLoading(true);
@@ -544,17 +564,39 @@ export default function Appointments() {
   const openPayEdit = () => {
     const parts = paymentPartsOf(detailsTarget);
     setPayEditParts(parts.length ? parts.map((p) => ({ method: p.method, amount: String(p.amount) })) : [{ method: 'CASH', amount: '' }]);
+    setCorrAmount(String(detailsTarget.finalPricePaid ?? ''));
+    setCorrManicuristId(detailsTarget.manicuristId);
+    setCorrReason('');
     setPayEditOpen(true);
   };
 
+  // En "Corregir cita" el total es el que escriba la administradora.
+  const payEditTotal = isAdmin ? corrAmount : detailsTarget?.finalPricePaid;
+  const corrNeedsReason = isAdmin && detailsTarget && (
+    Math.abs((Number(corrAmount) || 0) - (Number(detailsTarget.finalPricePaid) || 0)) >= 0.5 ||
+    corrManicuristId !== detailsTarget.manicuristId
+  );
+  // Especialistas que prestan todos los servicios de la cita (la actual siempre).
+  const corrManicurists = detailsTarget
+    ? manicurists.filter((m) =>
+        m.id === detailsTarget.manicuristId || providesAll(m, getApptServices(detailsTarget), services))
+    : [];
+
   const handlePayEdit = async (e) => {
     e.preventDefault();
-    const total = detailsTarget.finalPricePaid;
+    const total = payEditTotal;
+    if (isAdmin && !(Number(total) > 0)) { alert('El monto cobrado debe ser mayor que 0.'); return; }
     const err = partsError(payEditParts, total);
     if (err) { alert(err); return; }
+    if (corrNeedsReason && !corrReason.trim()) { alert('Indica el motivo de la corrección.'); return; }
     setPayEditing(true);
     try {
-      const res = await api.updateAppointmentPayment(detailsTarget.id, normalizeParts(payEditParts, total));
+      const payments = normalizeParts(payEditParts, total);
+      const res = isAdmin
+        ? await api.correctAppointment(detailsTarget.id, {
+            finalPricePaid: Number(total), manicuristId: corrManicuristId, payments, reason: corrReason,
+          })
+        : await api.updateAppointmentPayment(detailsTarget.id, payments);
       setDetailsTarget(res.appointment);
       setPayEditOpen(false);
       loadAppointments();
@@ -1137,17 +1179,43 @@ export default function Appointments() {
 
             {canEditPayment(detailsTarget) && !payEditOpen && (
               <Button type="button" variant="secondary" className="w-full justify-center" onClick={openPayEdit}>
-                <Pencil size={14} /> Cambiar forma de pago
+                <Pencil size={14} /> {isAdmin ? 'Corregir cita' : 'Cambiar forma de pago'}
               </Button>
             )}
 
             {payEditOpen && (
               <form onSubmit={handlePayEdit} className="space-y-3 rounded-xl border border-blush-100 bg-blush-25 p-3">
-                <p className="text-xs text-gray-500">
-                  El total cobrado ({formatCurrency(detailsTarget.finalPricePaid)}) no cambia. Finanzas, cierres y
-                  saldos se recalculan con la nueva forma de pago.
-                </p>
-                <PaymentSplitEditor parts={payEditParts} total={detailsTarget.finalPricePaid} onChange={setPayEditParts} />
+                {isAdmin ? (
+                  <>
+                    <p className="text-xs text-gray-500">
+                      Finanzas, comisiones, cierres y saldos se recalculan con los datos corregidos. Si cambias la
+                      especialista, la comisión pasa a ella con su porcentaje actual.
+                    </p>
+                    <Input label="Monto cobrado *" id="correct-amount" type="number" min="1" step="1" inputMode="numeric"
+                      required value={corrAmount} onChange={(e) => setCorrAmount(e.target.value)} />
+                    <Select label="Especialista que atendió *" id="correct-manicurist" value={corrManicuristId} required
+                      onChange={(e) => setCorrManicuristId(e.target.value)}>
+                      {corrManicurists.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </Select>
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    El total cobrado ({formatCurrency(detailsTarget.finalPricePaid)}) no cambia. Finanzas, cierres y
+                    saldos se recalculan con la nueva forma de pago.
+                  </p>
+                )}
+                <PaymentSplitEditor parts={payEditParts} total={payEditTotal} onChange={setPayEditParts} />
+                {corrNeedsReason && (
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="correct-reason" className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Motivo de la corrección *
+                    </label>
+                    <textarea id="correct-reason" rows={2} required maxLength={500} value={corrReason}
+                      onChange={(e) => setCorrReason(e.target.value)}
+                      placeholder="Ej.: se cobró mal / la atendió otra especialista"
+                      className="px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blush-300" />
+                  </div>
+                )}
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="ghost" onClick={() => setPayEditOpen(false)}>Cancelar</Button>
                   <Button type="submit" disabled={payEditing}>{payEditing ? 'Guardando...' : 'Guardar'}</Button>
@@ -1157,16 +1225,19 @@ export default function Appointments() {
 
             {(detailsTarget.paymentLogs || []).length > 0 && (
               <div className="space-y-1.5">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cambios de forma de pago</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Historial de cambios</p>
                 <ul className="space-y-1.5">
                   {detailsTarget.paymentLogs.map((log) => (
                     <li key={log.id} className="text-xs text-gray-500 bg-gray-50 rounded-lg px-2.5 py-2">
                       <span className="font-medium text-gray-700">{log.changedByName}</span> · {formatLogDate(log.createdAt)}
-                      <div className="mt-0.5">
-                        <span className="line-through">{describeParts(log.previous)}</span>
-                        {' → '}
-                        <span className="font-medium text-gray-700">{describeParts(log.next)}</span>
-                      </div>
+                      {logChanges(log).map(([label, before, after]) => (
+                        <div key={label} className="mt-0.5">
+                          {label}: <span className="line-through">{before}</span>
+                          {' → '}
+                          <span className="font-medium text-gray-700">{after}</span>
+                        </div>
+                      ))}
+                      {log.reason && <div className="mt-0.5 italic">Motivo: {log.reason}</div>}
                     </li>
                   ))}
                 </ul>

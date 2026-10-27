@@ -492,7 +492,10 @@ function ReportView({ report, isAdmin, pendingCommissions = [], onPayCommission 
                     <td className="py-3 text-right font-bold text-mauve-600">{formatCurrency(m.commissionEarned)}</td>
                     <td className="py-3 text-right">
                       {pc ? (
-                        <span className={`font-bold ${pc.pending > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                        // Negativo: se le pagó una comisión que luego se corrigió
+                        // (cita pasada a otra especialista o monto rebajado).
+                        <span className={`font-bold ${pc.pending > 0 ? 'text-amber-600' : pc.pending < -0.5 ? 'text-red-500' : 'text-gray-400'}`}
+                          title={pc.pending < -0.5 ? 'Se le pagó de más por una cita corregida: se descuenta de su próximo pago' : undefined}>
                           {formatCurrency(pc.pending)}
                         </span>
                       ) : '—'}

@@ -154,8 +154,12 @@ model Finance {
   @@index([appointmentId])
 }
 
-// Registro de cambios de forma de pago de citas ya completadas.
-// `previous`/`next` son JSON: [{ "method": "CASH", "amount": 35000 }, ...].
+// Historial de cambios de citas ya completadas: forma de pago, monto cobrado y
+// especialista. `previous`/`next` son JSON:
+//   { "amount": 35000, "manicuristId": "...", "manicuristName": "Ana",
+//     "payments": [{ "method": "CASH", "amount": 35000 }] }
+// Los registros antiguos (solo forma de pago) guardan directamente el array de
+// `payments`. `reason` es obligatorio al cambiar monto o especialista.
 model AppointmentPaymentLog {
   id              String      @id @default(cuid())
   appointmentId   String
@@ -163,6 +167,7 @@ model AppointmentPaymentLog {
   changedByName   String
   previous        String      @db.Text
   next            String      @db.Text
+  reason          String?     @db.Text
   createdAt       DateTime    @default(now())
   appointment     Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 

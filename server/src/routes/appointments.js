@@ -5,7 +5,8 @@ const { findSchedulingConflict } = require('../lib/scheduling');
 const { INCLUDE_FULL, mapAppointment, appointmentForViewer } = require('../lib/appointmentShape');
 const { PROVIDER_SELECT, providesAll } = require('../lib/manicuristServices');
 const { allocatePaid, singleCategory } = require('../lib/serviceCategories');
-const { parsePayments, appointmentMethodOf, partsOf, balanceWarning } = require('../lib/payments');
+const { parsePayments, appointmentMethodOf, partsOf, balanceWarning, AMOUNT_EPSILON } = require('../lib/payments');
+const { commissionTotals } = require('../lib/commissions');
 const googleCal = require('../lib/googleCalendar');
 const router = Router();
 
@@ -306,95 +307,265 @@ router.patch('/:id/complete', async (req, res) => {
   }
 });
 
+// ── Correcciones de citas completadas ───────────────────────────────────────
+// Una cita completada tiene uno o varios ingresos enlazados (uno por forma de
+// pago, Finance.appointmentId). Corregirla = borrar esos ingresos y recrearlos
+// con lo nuevo, dentro de una transacción, dejando constancia en
+// AppointmentPaymentLog. Comisiones pendientes, cierres, saldos y balance por
+// categoría suman esos registros, así que se recalculan solos.
+
+const COMPLETED_INCLUDE = {
+  manicurist: true,
+  services: { include: { service: true } },
+  finances: { where: { type: 'INCOME' }, orderBy: { createdAt: 'asc' } },
+};
+
+// Sin ingreso enlazado (citas antiguas que la migración no pudo enlazar con
+// seguridad) no se sabe qué registro corregir.
+function unlinkedIncomeError(appt) {
+  const total = Number(appt.finalPricePaid) || 0;
+  const linkedTotal = appt.finances.reduce((sum, f) => sum + f.amount, 0);
+  if (appt.finances.length === 0 || Math.abs(linkedTotal - total) > AMOUNT_EPSILON) {
+    return 'No se encontró el ingreso de esta cita en Finanzas (cita antigua). Corrígelo desde Finanzas.';
+  }
+  return null;
+}
+
+// Lo que se guarda en el historial antes y después de cada cambio.
+function snapshotOf(amount, manicurist, parts) {
+  return { amount, manicuristId: manicurist?.id || null, manicuristName: manicurist?.name || null, payments: parts };
+}
+
+function samePayments(a, b) {
+  return a.length === b.length &&
+    b.every((p) => a.some((q) => q.method === p.method && Math.abs(q.amount - p.amount) < AMOUNT_EPSILON));
+}
+
+async function authorNameOf(prisma, user) {
+  const name = user.manicuristId
+    ? (await prisma.manicurist.findUnique({ where: { id: user.manicuristId }, select: { name: true } }))?.name
+    : null;
+  return (name || user.username || 'Usuario').trim();
+}
+
+// Reparto del nuevo total entre los servicios de la cita para el balance por
+// categoría. Si ya estaba congelado se escala en proporción (respeta el reparto
+// original aunque luego cambien los precios base); si no, se reparte por
+// precio base como al completar.
+function rescaledShares(appt, total) {
+  const items = appt.services;
+  const oldTotal = Number(appt.finalPricePaid) || 0;
+  const frozen = items.length > 0 && items.every((s) => s.amount != null && s.category);
+  if (frozen && oldTotal > 0) {
+    return items.map((s) => ({ category: s.category, amount: s.amount * (total / oldTotal) }));
+  }
+  const amounts = allocatePaid(items.map((s) => s.service), total);
+  return items.map((s, i) => ({ category: s.category || s.service.category, amount: amounts[i] }));
+}
+
+// Reescribe ingresos, cita e historial. `manicurist` es la especialista final
+// (la misma u otra); al cambiarla, la cita y sus ingresos toman su % actual.
+async function rewriteCompleted(prisma, { appt, total, manicurist, parts, reason, user }) {
+  const manicuristChanged = manicurist.id !== appt.manicuristId;
+  const totalChanged = Math.abs(total - (Number(appt.finalPricePaid) || 0)) >= AMOUNT_EPSILON;
+  const base = appt.finances[0];
+  const commissionPercentage = manicuristChanged ? manicurist.commissionPercentage : base.commissionPercentage;
+  const previous = snapshotOf(Number(appt.finalPricePaid) || 0, appt.manicurist, partsOf(appt.finances));
+  const next = snapshotOf(total, manicurist, parts);
+  const changedByName = await authorNameOf(prisma, user);
+  const shares = totalChanged ? rescaledShares(appt, total) : null;
+
+  await prisma.$transaction([
+    prisma.finance.deleteMany({ where: { id: { in: appt.finances.map((f) => f.id) } } }),
+    // Se conservan descripción, fecha y categoría del ingreso original.
+    ...parts.map((part) =>
+      prisma.finance.create({
+        data: {
+          type: 'INCOME',
+          amount: part.amount,
+          description: base.description,
+          date: base.date,
+          paymentMethod: part.method,
+          manicuristColor: manicuristChanged ? manicurist.color || null : base.manicuristColor,
+          manicuristId: manicuristChanged ? manicurist.id : base.manicuristId,
+          commissionPercentage,
+          serviceCategory: base.serviceCategory,
+          appointmentId: appt.id,
+        },
+      })
+    ),
+    ...(shares
+      ? appt.services.map((item, i) =>
+          prisma.appointmentService.update({
+            where: { appointmentId_serviceId: { appointmentId: item.appointmentId, serviceId: item.serviceId } },
+            data: shares[i],
+          })
+        )
+      : []),
+    prisma.appointment.update({
+      where: { id: appt.id },
+      data: {
+        paymentMethod: appointmentMethodOf(parts),
+        ...(totalChanged && { finalPricePaid: total }),
+        ...(manicuristChanged && { manicuristId: manicurist.id, commissionPercentage }),
+      },
+    }),
+    prisma.appointmentPaymentLog.create({
+      data: {
+        appointmentId: appt.id,
+        changedByUserId: user.id || null,
+        changedByName,
+        previous: JSON.stringify(previous),
+        next: JSON.stringify(next),
+        reason: reason || null,
+      },
+    }),
+  ]);
+
+  return { previous, next };
+}
+
+const formatPesos = (v) => `$${Math.round(Math.abs(v)).toLocaleString('es-CO')}`;
+
+// Especialistas que, tras la corrección, quedan habiendo cobrado más comisión
+// de la que ganaron (ya se le pagó la de esta cita y ahora se le quitó).
+async function overpaidCommissionWarnings(prisma, manicurists) {
+  if (manicurists.length === 0) return [];
+  const totals = await commissionTotals(prisma, manicurists);
+  return manicurists
+    .filter((m) => totals[m.id].pending < -AMOUNT_EPSILON)
+    .map((m) =>
+      `A ${m.name} ya se le había pagado esta comisión: su saldo de comisiones queda en −${formatPesos(totals[m.id].pending)}, ` +
+      'que se descuenta de su próximo pago.'
+    );
+}
+
+async function loadCompletedOrFail(prisma, id) {
+  const appt = await prisma.appointment.findUnique({ where: { id }, include: COMPLETED_INCLUDE });
+  if (!appt) throw new HttpError(404, 'Appointment not found');
+  if (appt.status !== 'COMPLETED') throw new HttpError(400, 'Solo se pueden corregir citas completadas.');
+  const unlinked = unlinkedIncomeError(appt);
+  if (unlinked) throw new HttpError(409, unlinked);
+  return appt;
+}
+
+async function respondCorrected(req, res, apptId, warnings) {
+  const updated = await req.prisma.appointment.findUnique({ where: { id: apptId }, include: INCLUDE_FULL });
+  const list = warnings.filter(Boolean);
+  res.json({
+    appointment: appointmentForViewer(mapAppointment(updated), req.user),
+    warning: list.length ? list.join('\n\n') : null,
+  });
+}
+
 // Corrige la forma de pago de una cita ya completada (p. ej. se cerró como
 // Bancolombia pero la transferencia falló y pagó en efectivo), o la divide en
 // varias. El monto total no cambia. Pueden hacerlo la administradora y la
-// especialista que atendió la cita; cada cambio queda en AppointmentPaymentLog.
+// especialista que atendió la cita.
 router.patch('/:id/payment', async (req, res) => {
   try {
-    const appt = await req.prisma.appointment.findUnique({
-      where: { id: req.params.id },
-      include: { finances: { where: { type: 'INCOME' }, orderBy: { createdAt: 'asc' } } },
-    });
+    const appt = await req.prisma.appointment.findUnique({ where: { id: req.params.id }, select: { manicuristId: true } });
     if (!appt) return res.status(404).json({ error: 'Appointment not found' });
-
     const isAdmin = req.user.role === 'ADMIN';
     const isOwn = Boolean(req.user.manicuristId) && req.user.manicuristId === appt.manicuristId;
     if (!isAdmin && !isOwn) {
       return res.status(403).json({ error: 'Solo la administradora o la especialista de la cita pueden cambiar la forma de pago.' });
     }
-    if (appt.status !== 'COMPLETED') {
-      return res.status(400).json({ error: 'Solo se puede cambiar la forma de pago de una cita completada.' });
-    }
 
-    // Sin ingreso enlazado (citas antiguas que la migración no pudo enlazar
-    // con seguridad) no se sabe qué registro corregir.
-    const incomes = appt.finances;
-    const total = Number(appt.finalPricePaid) || 0;
-    const linkedTotal = incomes.reduce((sum, f) => sum + f.amount, 0);
-    if (incomes.length === 0 || Math.abs(linkedTotal - total) > 0.5) {
-      return res.status(409).json({
-        error: 'No se encontró el ingreso de esta cita en Finanzas (cita antigua). Corrígelo desde Finanzas.',
-      });
-    }
-
+    const full = await loadCompletedOrFail(req.prisma, req.params.id);
+    const total = Number(full.finalPricePaid) || 0;
     const payment = parsePayments(req.body, total);
     if (payment.error) return res.status(400).json({ error: payment.error });
+    if (samePayments(partsOf(full.finances), payment.parts)) {
+      return res.status(400).json({ error: 'La forma de pago no cambió.' });
+    }
 
-    const previous = partsOf(incomes);
-    const same =
-      previous.length === payment.parts.length &&
-      payment.parts.every((p) => previous.some((q) => q.method === p.method && Math.abs(q.amount - p.amount) < 0.5));
-    if (same) return res.status(400).json({ error: 'La forma de pago no cambió.' });
-
-    const author = req.user.manicuristId
-      ? (await req.prisma.manicurist.findUnique({ where: { id: req.user.manicuristId }, select: { name: true } }))?.name
-      : null;
-    const base = incomes[0];
-
-    await req.prisma.$transaction([
-      req.prisma.finance.deleteMany({ where: { id: { in: incomes.map((f) => f.id) } } }),
-      // Se recrean copiando todo lo que no es forma de pago ni monto: fecha,
-      // especialista, % de comisión congelado y categoría. Así cierres,
-      // comisiones y balance por categoría no cambian.
-      ...payment.parts.map((part) =>
-        req.prisma.finance.create({
-          data: {
-            type: 'INCOME',
-            amount: part.amount,
-            description: base.description,
-            date: base.date,
-            paymentMethod: part.method,
-            manicuristColor: base.manicuristColor,
-            manicuristId: base.manicuristId,
-            commissionPercentage: base.commissionPercentage,
-            serviceCategory: base.serviceCategory,
-            appointmentId: appt.id,
-          },
-        })
-      ),
-      req.prisma.appointment.update({
-        where: { id: appt.id },
-        data: { paymentMethod: appointmentMethodOf(payment.parts) },
-      }),
-      req.prisma.appointmentPaymentLog.create({
-        data: {
-          appointmentId: appt.id,
-          changedByUserId: req.user.id || null,
-          changedByName: (author || req.user.username || 'Usuario').trim(),
-          previous: JSON.stringify(previous),
-          next: JSON.stringify(payment.parts),
-        },
-      }),
-    ]);
-
-    const updated = await req.prisma.appointment.findUnique({ where: { id: appt.id }, include: INCLUDE_FULL });
-    res.json({
-      appointment: appointmentForViewer(mapAppointment(updated), req.user),
-      warning: isAdmin ? await balanceWarning(req.prisma, appt.date, previous, payment.parts) : null,
+    const { previous, next } = await rewriteCompleted(req.prisma, {
+      appt: full, total, manicurist: full.manicurist, parts: payment.parts, reason: null, user: req.user,
     });
+    await respondCorrected(req, res, full.id, [
+      isAdmin ? await balanceWarning(req.prisma, full.date, previous.payments, next.payments) : null,
+    ]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// Corrección completa de una cita cerrada: monto cobrado, especialista que la
+// atendió y forma de pago. Solo la administradora. Cambiar monto o especialista
+// exige un motivo. Al cambiar de especialista la comisión pasa a la nueva con
+// su % actual; si la anterior ya la había cobrado, queda con saldo negativo.
+router.patch('/:id/correct', async (req, res) => {
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Solo la administradora puede corregir una cita.' });
+  }
+  try {
+    const appt = await loadCompletedOrFail(req.prisma, req.params.id);
+    const oldTotal = Number(appt.finalPricePaid) || 0;
+
+    const rawTotal = req.body.finalPricePaid;
+    const total = rawTotal === undefined || rawTotal === '' ? oldTotal : Number(rawTotal);
+    if (!Number.isFinite(total) || total <= 0) {
+      return res.status(400).json({ error: 'El monto cobrado debe ser mayor que 0.' });
+    }
+    const totalChanged = Math.abs(total - oldTotal) >= AMOUNT_EPSILON;
+
+    let manicurist = appt.manicurist;
+    if (req.body.manicuristId && req.body.manicuristId !== appt.manicuristId) {
+      const mismatch = await serviceMismatchError(req.prisma, req.body.manicuristId, appt.services.map((s) => s.serviceId));
+      if (mismatch) return res.status(400).json({ error: mismatch });
+      manicurist = await req.prisma.manicurist.findUnique({ where: { id: req.body.manicuristId } });
+    }
+    const manicuristChanged = manicurist.id !== appt.manicuristId;
+
+    // Sin `payments` solo se admite si el pago era de una sola forma: el nuevo
+    // total va completo a esa forma. Con pago dividido hay que repartirlo.
+    const previousParts = partsOf(appt.finances);
+    let paymentsBody = req.body;
+    if (!Array.isArray(req.body.payments)) {
+      if (previousParts.length > 1 && totalChanged) {
+        return res.status(400).json({ error: 'El pago estaba dividido: indica cómo queda repartido el nuevo monto.' });
+      }
+      paymentsBody = {
+        payments: previousParts.length === 1 ? [{ method: previousParts[0].method, amount: total }] : previousParts,
+      };
+    }
+    const payment = parsePayments(paymentsBody, total);
+    if (payment.error) return res.status(400).json({ error: payment.error });
+
+    const paymentsChanged = !samePayments(previousParts, payment.parts);
+    if (!totalChanged && !manicuristChanged && !paymentsChanged) {
+      return res.status(400).json({ error: 'No hay cambios que guardar.' });
+    }
+
+    const reason = typeof req.body.reason === 'string' ? req.body.reason.trim().slice(0, 500) : '';
+    if ((totalChanged || manicuristChanged) && !reason) {
+      return res.status(400).json({ error: 'Indica el motivo de la corrección.' });
+    }
+
+    const { previous, next } = await rewriteCompleted(req.prisma, {
+      appt, total, manicurist, parts: payment.parts, reason, user: req.user,
+    });
+
+    // El evento de Calendar muestra la especialista.
+    if (manicuristChanged && appt.googleEventId) {
+      try {
+        const full = await req.prisma.appointment.findUnique({ where: { id: appt.id }, include: INCLUDE_FULL });
+        await googleCal.updateEvent(req.prisma, req.user.id, mapAppointment(full));
+      } catch (e) {
+        console.error('Google sync correct error', e.message);
+      }
+    }
+
+    // Quien pierde comisión con el cambio: la especialista anterior, o la misma
+    // si bajó el monto.
+    const losers = manicuristChanged ? [appt.manicurist] : total < oldTotal ? [manicurist] : [];
+    await respondCorrected(req, res, appt.id, [
+      await balanceWarning(req.prisma, appt.date, previous.payments, next.payments),
+      ...(await overpaidCommissionWarnings(req.prisma, losers)),
+    ]);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 

@@ -5,6 +5,7 @@ const {
   isValidCategory,
   allocatePaid,
 } = require('../lib/serviceCategories');
+const { commissionTotals } = require('../lib/commissions');
 const router = Router();
 
 // Todas las citas y finanzas se guardan en UTC pero representan hora local de
@@ -402,46 +403,17 @@ router.get('/summary', async (req, res) => {
 router.get('/pending-commissions', async (req, res) => {
   if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Solo administradores' });
   try {
-    const [manicurists, incomeFinances, payments] = await Promise.all([
-      req.prisma.manicurist.findMany({ orderBy: { name: 'asc' } }),
-      // Usamos los registros Finance de tipo INCOME con manicuristId, que se crean
-      // al completar cada cita. Cada registro guarda commissionPercentage (el % en
-      // vigor al momento del servicio). Para registros anteriores a esta mejora,
-      // commissionPercentage es null y se usa el % actual como fallback.
-      req.prisma.finance.findMany({
-        where: { type: 'INCOME', manicuristId: { not: null } },
-        select: { manicuristId: true, amount: true, commissionPercentage: true },
-      }),
-      req.prisma.finance.findMany({
-        where: { isCommission: true, type: 'EXPENSE' },
-        select: { manicuristId: true, amount: true },
-      }),
-    ]);
-
-    const manicuristMap = Object.fromEntries(manicurists.map((m) => [m.id, m]));
-
-    const earned = {};
-    for (const f of incomeFinances) {
-      const m = manicuristMap[f.manicuristId];
-      if (!m) continue; // manicurista eliminada, ignorar
-      // Prioriza el % guardado al momento del servicio; si no existe, usa el actual
-      const pct = f.commissionPercentage != null ? f.commissionPercentage : m.commissionPercentage;
-      earned[f.manicuristId] = (earned[f.manicuristId] || 0) + (Number(f.amount) || 0) * pct / 100;
-    }
-
-    const paid = {};
-    for (const p of payments) {
-      if (p.manicuristId) paid[p.manicuristId] = (paid[p.manicuristId] || 0) + p.amount;
-    }
+    const manicurists = await req.prisma.manicurist.findMany({ orderBy: { name: 'asc' } });
+    const totals = await commissionTotals(req.prisma, manicurists);
 
     const result = manicurists.map((m) => ({
       id: m.id,
       name: m.name,
       color: m.color,
       commissionPercentage: m.commissionPercentage,
-      totalEarned: earned[m.id] || 0,
-      totalPaid:   paid[m.id]   || 0,
-      pending:     (earned[m.id] || 0) - (paid[m.id] || 0),
+      totalEarned: totals[m.id].earned,
+      totalPaid:   totals[m.id].paid,
+      pending:     totals[m.id].pending,
     }));
 
     res.json(result);
